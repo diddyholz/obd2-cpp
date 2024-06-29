@@ -1,16 +1,16 @@
 #include "socket_wrapper.h"
 
+#include <iostream>
+#include <system_error>
 #include <cerrno>
 #include <cstring>
 
-#include "../exception/exception.h"
 #include "../macros.h"
 
 extern "C" {
     #include <fcntl.h>
     #include <sys/socket.h>
     #include <unistd.h>
-    // #include <sys/ifctl.h>
     #include <linux/can/isotp.h>
 }
 
@@ -23,13 +23,14 @@ namespace obd2 {
         sockaddr_can addr;
 
         if ((s = socket(PF_CAN, SOCK_DGRAM, CAN_ISOTP)) < 0) {
-            throw socket_exception((const char *)std::strerror(errno));
+            throw std::system_error(std::error_code(errno, std::generic_category()));
         }
 
         // Setup ISO-TP options
         CLEAR_STRUCT(isotp_opt);
         isotp_opt.txpad_content = 0xCC;
         isotp_opt.rxpad_content = 0x00;
+        isotp_opt.flags = CAN_ISOTP_TX_PADDING | CAN_ISOTP_RX_PADDING;
 
         setsockopt(s, SOL_CAN_ISOTP, CAN_ISOTP_OPTS, &isotp_opt, sizeof(isotp_opt));
 
@@ -42,7 +43,7 @@ namespace obd2 {
 
         // Bind address to socket
         if (bind(s, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
-            throw socket_exception((const char *)std::strerror(errno));
+            throw std::system_error(std::error_code(errno, std::generic_category()));
         }
 
         // Enable non blocking read
@@ -57,7 +58,7 @@ namespace obd2 {
     }
 
     socket_wrapper::socket_wrapper(socket_wrapper &&s) 
-        : fd(s.fd), tx_id(s.tx_id), rx_id(s.rx_id) {
+        : tx_id(s.tx_id), rx_id(s.rx_id), fd(s.fd) {
         s.fd = -1;
         s.tx_id = 0;
         s.rx_id = 0;
@@ -72,5 +73,9 @@ namespace obd2 {
         }
 
         return (size_t)nbytes;
+    }
+ 
+    void socket_wrapper::send_msg(void *data, size_t size) {
+        write(this->fd, data, size);
     }
 }

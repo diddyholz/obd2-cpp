@@ -1,9 +1,8 @@
 #pragma once
 
+#include <cstdlib>
 #include <cstdint>
 #include <vector>
-
-#include "../exception/exception.h"
 
 namespace obd2 {    
     class socket_wrapper {
@@ -21,11 +20,8 @@ namespace obd2 {
             socket_wrapper &operator=(const socket_wrapper &s) = delete;
 
             size_t read_msg(void *data, size_t size);
+            void send_msg(void *data, size_t size);
 
             friend class instance;
-    };
-
-    class socket_exception : public exception {
-
     };
 }
