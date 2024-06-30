@@ -2,8 +2,7 @@
 
 namespace obd2 {
     request::request(uint32_t can_id, uint8_t sid, uint16_t pid, bool refresh) 
-        : tx_id(can_id), sid(sid), pid(pid), refresh(refresh) {
-    }
+        : tx_id(can_id), sid(sid), pid(pid), refresh(refresh) { }
 
     bool request::operator==(const request &r) const {
         return (this->tx_id == r.tx_id && this->sid == r.sid && this->pid == r.pid);
@@ -18,19 +17,19 @@ namespace obd2 {
         }
     }
 
-    uint32_t request::get_tx_id() {
+    uint32_t request::get_tx_id() const {
         return this->tx_id;
     }
     
-    uint8_t request::get_sid() {
+    uint8_t request::get_sid() const {
         return this->sid;
     }
     
-    uint16_t request::get_pid() {
+    uint16_t request::get_pid() const {
         return this->pid;
     }
 
-    std::vector<ecu> &request::get_ecus() {
+    std::list<ecu> &request::get_ecus() {
         return this->ecus;
     }
 

@@ -113,12 +113,13 @@ namespace obd2 {
 
             ecu &responding_ecu = r->get_ecu_by_id(s.rx_id);
 
-            responding_ecu.get_next_response_buf().assign(data, data + size - OBD2_RES_DATA);
-            responding_ecu.update_response();
+            responding_ecu.update_next_response_buf(data, data + size - OBD2_RES_DATA);
         }
     }
 
     void instance::remove_completed_requests() {
+        std::lock_guard<std::mutex> requests_lock(this->requests_mutex);
+
         for (request *&r : this->active_requests) {
             if (r->refresh || r->ecus.size() == 0) {
                 continue;
@@ -134,6 +135,8 @@ namespace obd2 {
     }
 
     request &instance::add_request(uint32_t tx_id, uint8_t sid, uint16_t pid, bool refresh) {
+        std::lock_guard<std::mutex> requests_lock(this->requests_mutex);
+
         // Check if identical request already exists
         for (request *&r : this->active_requests) {
             if (r->tx_id == tx_id && r->sid == sid && r->pid == pid) {
