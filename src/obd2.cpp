@@ -106,7 +106,7 @@ namespace obd2 {
         // Go through each request and check if data is for specified request
         for (request *&r : this->active_requests) {
             if ((r->tx_id != s.tx_id && r->tx_id != OBD2_ID_BROADCAST)
-                || r->sid != sid 
+                || r->sid != (sid - 0x40) 
                 || r->pid != pid) {
                 continue;
             }

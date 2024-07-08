@@ -1,18 +1,17 @@
 #include "socket_wrapper.h"
 
-#include <iostream>
-#include <system_error>
 #include <cerrno>
+#include <chrono>
 #include <cstring>
+#include <fcntl.h>
+#include <iostream>
+#include <linux/can/isotp.h>
+#include <system_error>
+#include <sys/socket.h>
+#include <thread>
+#include <unistd.h>
 
 #include "../macros.h"
-
-extern "C" {
-    #include <fcntl.h>
-    #include <sys/socket.h>
-    #include <unistd.h>
-    #include <linux/can/isotp.h>
-}
 
 namespace obd2 {
     socket_wrapper::socket_wrapper(uint32_t tx_id, uint32_t rx_id, int if_index) 
@@ -76,6 +75,12 @@ namespace obd2 {
     }
  
     void socket_wrapper::send_msg(void *data, size_t size) {
-        write(this->fd, data, size);
+        while(write(this->fd, data, size) < 0) {
+            if (errno != EAGAIN) {
+                return;
+            }
+
+            std::this_thread::sleep_for(std::chrono::microseconds(100));
+        }
     }
 }
