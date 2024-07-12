@@ -1,46 +1,64 @@
 #include "request.h"
 
+#include "../../include/obd2.h"
+
 namespace obd2 {
-    request::request(uint32_t can_id, uint8_t sid, uint16_t pid, bool refresh) 
-        : tx_id(can_id), sid(sid), pid(pid), refresh(refresh) { }
+    const float request::NO_RESPONSE = std::numeric_limits<float>::quiet_NaN();
 
-    bool request::operator==(const request &r) const {
-        return (this->tx_id == r.tx_id && this->sid == r.sid && this->pid == r.pid);
+    request::request(uint32_t ecu_id, uint8_t service, uint16_t pid, const std::string &formula, bool refresh, obd2 &parent)
+        : parent(&parent), ecu_id(ecu_id), service(service), pid(pid), formula_str(formula), formula(formula), refresh(refresh) { }
+
+    void request::resume() {
+        parent->resume_request(*this);
     }
 
-    void request::get_can_msg(std::vector<uint8_t> &buf) {        
-        buf = { this->sid, (uint8_t)(this->pid & 0xFF), (uint8_t)(this->pid >> 8) };
+    void request::stop() {
+        parent->stop_request(*this);
+    }
 
-        // If pid is only 8 bits, cut off second PID byte
-        if (this->pid < 0x100) {
-            buf.resize(buf.size() - 1);
+    float request::get_value() {
+        std::lock_guard<std::mutex> value_lock(value_mutex);
+
+        if (refresh || !has_value()) {
+            last_raw_value = parent->get_data(*this);
         }
+
+        if (last_raw_value.size() == 0) {
+            last_value = NO_RESPONSE;
+            return last_value;
+        }
+
+        last_value = formula.solve(last_raw_value);
+        return last_value; 
     }
 
-    uint32_t request::get_tx_id() const {
-        return this->tx_id;
+    const std::vector<uint8_t> &request::get_raw() {
+        std::lock_guard<std::mutex> value_lock(value_mutex);
+
+        if (refresh || !has_value()) {
+            last_raw_value = parent->get_data(*this);
+        }
+
+        return last_raw_value;
     }
-    
-    uint8_t request::get_sid() const {
-        return this->sid;
+
+    uint32_t request::get_ecu_id() const {
+        return ecu_id;    
     }
-    
+
+    uint8_t request::get_service() const {
+        return service;    
+    }
+
     uint16_t request::get_pid() const {
-        return this->pid;
+        return pid;    
     }
 
-    std::list<ecu> &request::get_ecus() {
-        return this->ecus;
+    std::string request::get_formula() const {
+        return formula_str;    
     }
 
-    ecu &request::get_ecu_by_id(uint32_t rx_id) {
-        for (ecu &e : this->ecus) {
-            if (e.get_rx_id() == rx_id) {
-                return e;
-            }
-        }
-
-        // If no ECU matching the ID was found, create a new ECU entry
-        return this->ecus.emplace_back(rx_id);
+    bool request::has_value() const {
+        return last_raw_value.size() > 0;
     }
 }

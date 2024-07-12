@@ -1,43 +1,37 @@
 #pragma once
 
 #include <cstdint>
-#include <list>
+#include <memory>
+#include <unordered_map>
 #include <vector>
-#include <thread>
-#include <mutex>
 
+#include "../src/protocol/protocol.h"
 #include "../src/request/request.h"
-#include "../src/socket_wrapper/socket_wrapper.h"
 
 namespace obd2 {
-    class instance {
+
+    class obd2 {
         private:
-            // Pointer to requests to make sure that references do not get invalidated
-            std::list<request *> active_requests;
-            std::list<request *> prev_requests;
-            std::mutex requests_mutex;
+            protocol protocol_instance;
 
-            std::vector<socket_wrapper> sockets;
+            std::unordered_map<request *, std::reference_wrapper<command>> requests_command_map;
 
-            int if_index;
-            uint32_t refresh_ms;
-            std::thread listener_thread;
-
-            void response_listener();
-            void open_default_sockets();
-            void remove_completed_requests();
-            void process_request(request &r);
-            void process_socket(socket_wrapper &s);
+            size_t requests_using_command(const command &c) const;
+            void stop_request(request &r);            
+            void resume_request(request &r);     
+            const std::vector<uint8_t> &get_data(const request &r);     
 
         public:
-            instance(const char *if_name, uint32_t refresh_ms = 1000);
-            instance(const instance &i) = delete;
-            instance(const instance &&i) = delete;
-            ~instance();            
-            
-            instance &operator=(const instance &i) = delete;
+            obd2(const char *if_name, uint32_t refresh_ms = 1000);
+            obd2(const obd2 &i) = delete;
+            obd2(const obd2 &&i) = delete;
+            ~obd2();
+
+            obd2 &operator=(const obd2 &i) = delete;
 
             void set_refresh_ms(uint32_t refresh_ms);
-            request &add_request(uint32_t tx_id, uint8_t sid, uint16_t pid, bool refresh);
+            request &add_request(uint32_t ecu_id, uint8_t service, uint16_t pid, const std::string &formula, bool refresh);
+
+            friend class request;
     };
 }
