@@ -106,6 +106,8 @@ namespace obd2 {
                 }
 
                 return left_val / right_val;
+            case EXPONENTIATION:
+                return std::pow(left_val, right_val);
             case VARIABLE:
                 if (value_index >= input_values.size()) {
                     return 0.0;

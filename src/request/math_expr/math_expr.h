@@ -9,6 +9,7 @@ namespace obd2 {
         SUBTRACTION = '-',
         MULTIPLICATION = '*',
         DIVISION = '/',
+        EXPONENTIATION = '^',
         VARIABLE,
         RAW
     };
