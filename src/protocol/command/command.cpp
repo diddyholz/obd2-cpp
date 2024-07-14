@@ -8,6 +8,7 @@ namespace obd2 {
     command::command(uint32_t tx_id, uint32_t rx_id, uint8_t sid, uint16_t pid, bool refresh, protocol &parent) 
         : parent(&parent), tx_id(tx_id), rx_id(rx_id), sid(sid), pid(pid), refresh(refresh) { 
         parent.add_command(*this);
+        parent.process_command(*this);
     }
 
     command::command(command &&c) {
@@ -94,15 +95,11 @@ namespace obd2 {
     }
 
     void command::resume() {
-        check_parent();
-
-        parent->resume_command(*this);
+        refresh = true;
     }
 
     void command::stop() {
-        check_parent();
-
-        parent->stop_command(*this);
+        refresh = false;
     }
 
     uint32_t command::get_tx_id() const {
@@ -134,15 +131,6 @@ namespace obd2 {
         return response_status;
     }
 
-    void command::wait_till_sent(uint32_t sample_us) {
-        check_parent();
-
-        // Wait until get_message_buffer is called
-        while (!message_sent) {
-            std::this_thread::sleep_for(std::chrono::microseconds(sample_us));
-        }
-    }
-
     void command::check_parent() {
         if (parent == nullptr) {
             throw std::runtime_error("Command has no parent");
@@ -157,13 +145,14 @@ namespace obd2 {
             buf.push_back(static_cast<uint8_t>(pid >> 8));
         }
 
-        // Assume that the message is sent
-        message_sent = true;
-
         return buf;
     }
 
     void command::update_back_buffer(const uint8_t *start, const uint8_t *end) {
+        if (!refresh && response_status != NO_RESPONSE) {
+            return;
+        }
+
         std::lock_guard<std::mutex> response_bufs_lock(response_bufs_mutex);
 
         back_buffer.assign(start, end);

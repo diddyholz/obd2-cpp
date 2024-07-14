@@ -47,9 +47,9 @@ namespace obd2 {
             obd2(const char *if_name, uint32_t refresh_ms = 1000);
             obd2(const obd2 &i) = delete;
             obd2(const obd2 &&i) = delete;
-            ~obd2();
 
             obd2 &operator=(const obd2 &i) = delete;
+            obd2 &operator=(obd2 &&i) = delete;
 
             void set_refresh_ms(uint32_t refresh_ms);
             std::vector<uint8_t> get_supported_pids(uint32_t ecu_id);

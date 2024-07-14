@@ -8,13 +8,6 @@ namespace obd2 {
     obd2::obd2(const char *if_name, uint32_t refresh_ms) 
         : protocol_instance(if_name, refresh_ms) {}
 
-    obd2::~obd2() {
-        // Cleanup all requests
-        for (auto &p : requests_command_map) {
-            delete p.first;
-        }
-    }
-
     void obd2::set_refresh_ms(uint32_t refresh_ms) {
         protocol_instance.set_refresh_ms(refresh_ms);
     }
@@ -69,7 +62,7 @@ namespace obd2 {
     }
 
     vehicle_info obd2::get_vehicle_info() {
-        vehicle_info info;
+        vehicle_info info = { .vin = "Unkonwn", .ign_type = vehicle_info::UNKNOWN, .ecus = { } };
         std::vector<uint8_t> pids = get_supported_pids(ECU_ID_FIRST, 0x09, 0);
 
         info.ecus = get_ecus();
@@ -119,9 +112,6 @@ namespace obd2 {
         command &c = requests_command_map.at(&r);
         requests_command_map.erase(&r);
 
-        // Do not remove request before it is sent
-        c.wait_till_sent();
-
         // Check if command is still used by other requests, if not remove it
         for (auto p : requests_command_map) {
             if (&p.second.get() == &c) {
@@ -146,7 +136,7 @@ namespace obd2 {
         }       
         
         // If no command was found, create a new one
-        return commands.emplace_back(ecu_id, ecu_id + ECU_ID_RES_OFFSET, service, pid, false, protocol_instance);
+        return commands.emplace_back(ecu_id, ecu_id + ECU_ID_RES_OFFSET, service, pid, true, protocol_instance);
     }
     
     // TODO: For faster counting, use a separate map<command *, size_t> instead of iterating over all requests
@@ -269,7 +259,6 @@ namespace obd2 {
 
     bool obd2::get_ecu(uint32_t ecu_id, vehicle_info::ecu &ecu) {
         std::vector<uint8_t> pids = get_supported_pids(ecu_id, 0x09, 0);
-        std::string name;
 
         if (pids.size() == 0) {
             return false;
@@ -280,12 +269,12 @@ namespace obd2 {
             command c(ecu_id, ecu_id + ECU_ID_RES_OFFSET, 0x09, 0x0A, false, protocol_instance);
 
             if (c.wait_for_response() == command::OK) {
-                name = std::string(c.get_buffer().begin(), c.get_buffer().end());
+                const std::vector<uint8_t> &res = c.get_buffer();
+                ecu.name.assign(reinterpret_cast<const char *>(res.data()));
             }
         }
 
         ecu.id = ecu_id;
-        ecu.name = std::move(name);
 
         return true;
     }

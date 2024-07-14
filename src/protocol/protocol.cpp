@@ -32,8 +32,13 @@ namespace obd2 {
         listener_thread = std::thread(&protocol::command_listener, this);
     }
 
+    protocol::~protocol() {
+        listener_running = false;
+        listener_thread.join();
+    }
+
     void protocol::command_listener() {
-        for (;;) {
+        while (listener_running) {
             process_commands();
             std::this_thread::sleep_for(std::chrono::milliseconds(refresh_ms / 2));
 
@@ -42,23 +47,29 @@ namespace obd2 {
         }
     }
 
-    void protocol::open_socket(uint32_t tx_id, uint32_t rx_id) {
+    socket_wrapper &protocol::get_socket(uint32_t tx_id, uint32_t rx_id) {
         // Check if socket already exists
-        for (socket_wrapper &s : this->sockets) {
+        for (socket_wrapper &s : sockets) {
             if (s.tx_id == tx_id && s.rx_id == rx_id) {
-                return;
+                return s;
             }
         }
 
-        this->sockets.emplace_back(tx_id, rx_id, this->if_index);
+        return sockets.emplace_back(tx_id, rx_id, if_index);
     }
 
     void protocol::process_commands() {
         std::lock_guard<std::mutex> commands_lock(commands_mutex);
 
         // Go through each request and send CAN message
-        for (command *r : active_commands) {
-            process_command(*r);
+        for (auto &p : command_socket_map) {
+            command *c = p.first;
+
+            if (!c->refresh) {
+                continue;
+            }
+
+            process_command(*c);
         }
     }
 
@@ -71,13 +82,9 @@ namespace obd2 {
 
     void protocol::process_command(command &c) {
         std::vector<uint8_t> msg_buf = c.get_can_msg();
-
-        // Find socket to use for this command
-        for (socket_wrapper &s : this->sockets) {
-            if (s.tx_id == c.tx_id && s.rx_id == c.rx_id) {
-                s.send_msg(msg_buf.data(), msg_buf.size());
-            }
-        }      
+        
+        socket_wrapper &s = command_socket_map.at(&c);
+        s.send_msg(msg_buf.data(), msg_buf.size());
     }
 
     void protocol::process_socket(socket_wrapper &s) {
@@ -101,7 +108,9 @@ namespace obd2 {
 
         // Go through each request and check if data is for specified request
         // Only check pid if response is positive
-        for (command *c : active_commands) {
+        for (auto &p : command_socket_map) {
+            command *c = p.first;
+
             if (c->tx_id != s.tx_id
                 || c->rx_id != s.rx_id
                 || c->sid != (sid - UDS_RX_ID_OFFSET) 
@@ -120,108 +129,44 @@ namespace obd2 {
             else {
                 c->update_back_buffer(data, data + size - UDS_RES_DATA);
             }
-            
-            if (!c->refresh) {
-                stop_command_nolock(*c);
-            }
 
             return;
         }
-    }
-
-    void protocol::resume_command_nolock(command &c) {
-        size_t initial_size = stopped_commands.size();
-
-        stopped_commands.remove(&c);
-        
-        if (stopped_commands.size() == initial_size) {
-            return;
-        }
-
-        c.refresh = true;
-        active_commands.emplace_back(&c);
-    }
-
-    void protocol::stop_command_nolock(command &c) {
-        size_t initial_size = active_commands.size();
-
-        active_commands.remove(&c);
-        
-        if (active_commands.size() == initial_size) {
-            return;
-        }
-
-        c.refresh = false;
-        stopped_commands.emplace_back(&c);
     }
 
     void protocol::set_refresh_ms(uint32_t refresh_ms) {
-        this->refresh_ms = refresh_ms;
+        refresh_ms = refresh_ms;
     }
 
     void protocol::add_command(command &c) {
         std::lock_guard<std::mutex> commands_lock(commands_mutex);
 
         // Check if identical command already exists
-        for (command *active_c : active_commands) {
-            if (active_c->tx_id == c.tx_id 
-                && active_c->rx_id == c.rx_id 
-                && active_c->sid == c.sid 
-                && active_c->pid == c.pid) {
+        for (auto &p : command_socket_map) {
+            if (p.first->tx_id == c.tx_id 
+                && p.first->rx_id == c.rx_id
+                && p.first->sid == c.sid
+                && p.first->pid == c.pid) {
                 throw std::invalid_argument("Command already exists");
             }
         }
 
-        // Check if identical command is currently stopped
-        for (command *stopped_c : stopped_commands) {
-            if (stopped_c->tx_id == c.tx_id 
-                && stopped_c->rx_id == c.rx_id 
-                && stopped_c->sid == c.sid 
-                && stopped_c->pid == c.pid) {
-                throw std::invalid_argument("Command already exists");
-            }
-        }
-
-        // Open required socket
-        open_socket(c.tx_id, c.rx_id);
-
-        active_commands.emplace_back(&c);
+        // Get required socket
+        socket_wrapper &socket = get_socket(c.tx_id, c.rx_id);
+        command_socket_map.emplace(&c, socket);
     }
 
     void protocol::remove_command(command &c) {
         std::lock_guard<std::mutex> commands_lock(commands_mutex);
-
-        active_commands.remove(&c);
-        stopped_commands.remove(&c);
+        
+        command_socket_map.erase(&c);
     }
     
     void protocol::move_command(command &old_ref, command &new_ref) {
         std::lock_guard<std::mutex> commands_lock(commands_mutex);
+        socket_wrapper &socket = command_socket_map.at(&old_ref);
 
-        size_t initial_size = active_commands.size();
-        active_commands.remove(&old_ref);
-
-        if (active_commands.size() != initial_size) {
-            active_commands.emplace_back(&new_ref);
-            return;
-        }
-
-        initial_size = stopped_commands.size();
-        stopped_commands.remove(&old_ref);
-
-        if (stopped_commands.size() != initial_size) {
-            stopped_commands.emplace_back(&new_ref);
-            return;
-        }
-    }
-
-    void protocol::resume_command(command &c) {
-        std::lock_guard<std::mutex> commands_lock(commands_mutex);
-        resume_command_nolock(c);
-    }
-
-    void protocol::stop_command(command &c) {
-        std::lock_guard<std::mutex> commands_lock(commands_mutex);
-        stop_command_nolock(c);
+        command_socket_map.erase(&old_ref);
+        command_socket_map.emplace(&new_ref, socket);
     }
 }
