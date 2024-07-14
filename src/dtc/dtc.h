@@ -25,5 +25,5 @@ namespace obd2 {
     };
 
     std::ostream &operator<<(std::ostream &os, const dtc::status stat);
-    std::ostream &operator<<(std::ostream &os, const dtc::dtc &dtc);
+    std::ostream &operator<<(std::ostream &os, const dtc &dtc);
 }

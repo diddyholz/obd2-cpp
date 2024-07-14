@@ -119,6 +119,9 @@ namespace obd2 {
         command &c = requests_command_map.at(&r);
         requests_command_map.erase(&r);
 
+        // Do not remove request before it is sent
+        c.wait_till_sent();
+
         // Check if command is still used by other requests, if not remove it
         for (auto p : requests_command_map) {
             if (&p.second.get() == &c) {

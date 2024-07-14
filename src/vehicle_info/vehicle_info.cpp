@@ -10,8 +10,8 @@ namespace obd2 {
                 os << "Compression";
                 break;
             case vehicle_info::ignition_type::UNKNOWN:
+            default:
                 os << "Unknown";
-                break;
         }
 
         return os;

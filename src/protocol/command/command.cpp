@@ -122,6 +122,8 @@ namespace obd2 {
     }
 
     command::status command::wait_for_response(uint32_t timeout_ms, uint32_t sample_us) {
+        check_parent();
+
         auto start = std::chrono::steady_clock::now();
 
         while (response_status == NO_RESPONSE 
@@ -132,19 +134,31 @@ namespace obd2 {
         return response_status;
     }
 
+    void command::wait_till_sent(uint32_t sample_us) {
+        check_parent();
+
+        // Wait until get_message_buffer is called
+        while (!message_sent) {
+            std::this_thread::sleep_for(std::chrono::microseconds(sample_us));
+        }
+    }
+
     void command::check_parent() {
         if (parent == nullptr) {
             throw std::runtime_error("Command has no parent");
         }
     }
 
-    std::vector<uint8_t> command::get_can_msg() const {        
+    std::vector<uint8_t> command::get_can_msg() {        
         std::vector<uint8_t> buf = { sid, static_cast<uint8_t>(pid & 0xFF) };
 
         // Add second byte if PID is 16 bits
         if (pid > 0xFF) {
             buf.push_back(static_cast<uint8_t>(pid >> 8));
         }
+
+        // Assume that the message is sent
+        message_sent = true;
 
         return buf;
     }
@@ -155,14 +169,5 @@ namespace obd2 {
         back_buffer.assign(start, end);
         response_updated = true;
         response_status = OK;
-    }
-
-    void command::clear_response() {
-        std::lock_guard<std::mutex> response_bufs_lock(response_bufs_mutex);
-
-        back_buffer.clear();
-        response_updated = false;
-        response_buffer.clear();
-        response_status = NO_RESPONSE;
     }
 }

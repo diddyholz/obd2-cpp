@@ -14,14 +14,15 @@ namespace obd2 {
             case dtc::status::PERMANENT:
                 os << "Permanent";
                 break;
+            default:
+                os << "Unknown";
         }
 
         return os;
     }
 
     std::ostream &operator<<(std::ostream &os, const dtc &dtc) {
-        switch (dtc.cat)
-        {
+        switch (dtc.cat) {
             case dtc::category::POWERTRAIN:
                 os << "P";
                 break;
@@ -34,10 +35,18 @@ namespace obd2 {
             case dtc::category::NETWORK:
                 os << "U";
                 break;
+            default:
+                os << "x";
+                break;
         }
 
-        os << std::setw(4) << std::setfill("0") << dtc.code 
-            << std::setw(0) << " (" << dtc.stat << ")";
+        char old_fill = os.fill('0');
+        std::streamsize old_width = os.width(4);
+
+        os << dtc.code << " (" << dtc.stat << ")";
+
+        os.fill(old_fill);
+        os.width(old_width);
 
         return os;
     }

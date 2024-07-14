@@ -26,6 +26,8 @@ namespace obd2 {
             bool response_updated = false;
             status response_status = NO_RESPONSE;
 
+            bool message_sent = false;
+
             uint32_t tx_id;
             uint32_t rx_id;
             uint8_t sid;
@@ -33,9 +35,8 @@ namespace obd2 {
             bool refresh;
 
             void check_parent();
-            std::vector<uint8_t> get_can_msg() const;
+            std::vector<uint8_t> get_can_msg();
             void update_back_buffer(const uint8_t *start, const uint8_t *end);
-            void clear_response();
         
         public:
             command();
@@ -58,6 +59,7 @@ namespace obd2 {
 
             status get_response_status();
             status wait_for_response(uint32_t timeout_ms = 1000, uint32_t sample_us = 1000);
+            void wait_till_sent(uint32_t sample_us = 1000);
             const std::vector<uint8_t> &get_buffer();
 
             friend class protocol;
