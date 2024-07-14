@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <iostream>
 
 namespace obd2 {
     struct dtc {
@@ -22,4 +23,7 @@ namespace obd2 {
         uint16_t code;
         status stat;
     };
+
+    std::ostream &operator<<(std::ostream &os, const dtc::status stat);
+    std::ostream &operator<<(std::ostream &os, const dtc::dtc &dtc);
 }

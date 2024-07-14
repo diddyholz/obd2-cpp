@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <iostream>
 #include <string>
 #include <vector>
 
@@ -21,4 +22,6 @@ namespace obd2 {
         ignition_type ign_type;
         std::vector<ecu> ecus;
     };
+
+    std::ostream &operator<<(std::ostream &os, const vehicle_info::ignition_type type);
 }
