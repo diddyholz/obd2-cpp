@@ -10,14 +10,21 @@ namespace obd2 {
     class protocol;
     
     class command {
+        public:
+            enum status {
+                OK = 0,
+                NO_RESPONSE = 1,
+                ERROR = 2
+            };
+
         private:
             protocol *parent;
 
-            static const size_t RESPONSE_BUF_COUNT = 2;
-            std::vector<uint8_t> response_bufs[RESPONSE_BUF_COUNT];
-            bool response_updated = false;
-            size_t cur_response_buf = 0;
             std::mutex response_bufs_mutex;
+            std::vector<uint8_t> back_buffer;
+            std::vector<uint8_t> response_buffer;
+            bool response_updated = false;
+            status response_status = NO_RESPONSE;
 
             uint32_t tx_id;
             uint32_t rx_id;
@@ -25,16 +32,22 @@ namespace obd2 {
             uint16_t pid;
             bool refresh;
 
+            void check_parent();
             std::vector<uint8_t> get_can_msg() const;
-            void update_next_buf(const uint8_t *start, const uint8_t *end);
+            void update_back_buffer(const uint8_t *start, const uint8_t *end);
+            void clear_response();
         
         public:
+            command();
             command(uint32_t tx_id, uint32_t rx_id, uint8_t sid, uint16_t pid, bool refresh, protocol &parent);
-            command(command &e);
-            command(command &&e);
+            command(const command &c) = delete;
+            command(command &&c);
+            ~command();
 
-            command &operator=(command &e);
-            bool operator==(const command &r) const;
+            command &operator=(const command &c) = delete;
+            command &operator=(command &&c);
+
+            bool operator==(const command &c) const;
 
             void resume();            
             void stop();
@@ -43,7 +56,9 @@ namespace obd2 {
             uint8_t get_sid() const;
             uint16_t get_pid() const;
 
-            const std::vector<uint8_t> &get_current_buf();
+            status get_response_status();
+            status wait_for_response(uint32_t timeout_ms = 1000, uint32_t sample_us = 1000);
+            const std::vector<uint8_t> &get_buffer();
 
             friend class protocol;
     };

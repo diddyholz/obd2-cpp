@@ -16,7 +16,9 @@ namespace obd2 {
             ~socket_wrapper();
             socket_wrapper(socket_wrapper &&s);
             socket_wrapper(const socket_wrapper &s) = delete;
+            
             socket_wrapper &operator=(const socket_wrapper &s) = delete;
+            socket_wrapper &operator=(socket_wrapper &&s);
 
             size_t read_msg(void *data, size_t size);
             void send_msg(void *data, size_t size);

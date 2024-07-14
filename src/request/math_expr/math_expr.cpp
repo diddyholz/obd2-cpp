@@ -2,11 +2,14 @@
 
 #include <cstdlib>
 #include <cctype>
+#include <cmath>
 #include <exception>
 #include <limits>
 #include <stdexcept>
 
 namespace obd2 {
+    math_expr::math_expr() : operation(RAW), value_raw(0.0) {}
+
     math_expr::math_expr(const std::string &formula) {
         if (formula == "") {
             value_raw = 0.0;
@@ -39,7 +42,8 @@ namespace obd2 {
     }
 
     math_expr::math_expr(const math_expr &e) 
-        : operation(e.operation), value_index(e.value_index), value_mask(e.value_mask) {
+        : operation(e.operation), value_index(e.value_index), value_mask(e.value_mask), 
+            value_shift(e.value_shift), value_raw(e.value_raw) {
         if (e.left) {
             left = new math_expr(*(e.left));
         }
@@ -50,7 +54,11 @@ namespace obd2 {
     }
 
     math_expr::math_expr(math_expr &&e) 
-        : operation(e.operation), left(e.left), right(e.right), value_index(e.value_index), value_mask(e.value_mask) { }
+        : operation(e.operation), left(e.left), right(e.right), value_index(e.value_index), 
+            value_mask(e.value_mask), value_shift(e.value_shift), value_raw(e.value_raw) { 
+        e.left = nullptr;
+        e.right = nullptr;
+    }
 
     math_expr::~math_expr() {
         delete left;
@@ -78,8 +86,30 @@ namespace obd2 {
         operation = e.operation;
         value_index = e.value_index;
         value_mask = e.value_mask;
-        value_mask = e.value_mask;
+        value_shift = e.value_shift;
+        value_raw = e.value_raw;
+
+        e.left = nullptr;
+        e.right = nullptr;
         
+        return *this;
+    }
+
+    math_expr &math_expr::operator=(math_expr &&e) {
+        delete left;
+        delete right;
+
+        operation = e.operation;
+        left = e.left;
+        right = e.right;
+        value_index = e.value_index;
+        value_mask = e.value_mask;
+        value_shift = e.value_shift;
+        value_raw = e.value_raw;
+
+        e.left = nullptr;
+        e.right = nullptr;
+
         return *this;
     }
 

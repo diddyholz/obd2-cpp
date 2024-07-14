@@ -3,20 +3,95 @@
 #include "../../include/obd2.h"
 
 namespace obd2 {
-    const float request::NO_RESPONSE = std::numeric_limits<float>::quiet_NaN();
+    request::request() : parent(nullptr) { }
 
     request::request(uint32_t ecu_id, uint8_t service, uint16_t pid, const std::string &formula, bool refresh, obd2 &parent)
-        : parent(&parent), ecu_id(ecu_id), service(service), pid(pid), formula_str(formula), formula(formula), refresh(refresh) { }
+        : parent(&parent), ecu_id(ecu_id), service(service), pid(pid), formula_str(formula), formula(formula), refresh(refresh) { 
+        // TODO: Support broadcast id (0x7DF)
+        if (ecu_id < obd2::ECU_ID_FIRST || ecu_id > obd2::ECU_ID_LAST) {
+            throw std::invalid_argument("Invalid or unsupported ECU ID");
+        }
+
+        parent.add_request(*this);
+    }
+
+    request::request(request &&r) {
+        if (this == &r) {
+            return;
+        }
+
+        if (parent != nullptr) {
+            parent->remove_request(*this);
+        }
+
+        parent = r.parent;
+        ecu_id = r.ecu_id;
+        service = r.service;
+        pid = r.pid;
+        formula_str = r.formula_str;
+        formula = r.formula;
+        refresh = r.refresh;
+        last_value = r.last_value;
+
+        r.parent = nullptr;
+
+        if (parent != nullptr) {
+            parent->move_request(r, *this);
+        }
+
+        last_raw_value = std::move(r.last_raw_value);
+    }
+
+    request::~request() {
+        if (parent != nullptr) {
+            parent->remove_request(*this);
+        }
+    }
+
+    request &request::operator=(request &&r) {
+        if (this == &r) {
+            return *this;
+        }
+
+        if (parent != nullptr) {
+            parent->remove_request(*this);
+        }
+
+        parent = r.parent;
+        ecu_id = r.ecu_id;
+        service = r.service;
+        pid = r.pid;
+        formula_str = r.formula_str;
+        formula = r.formula;
+        refresh = r.refresh;
+        last_value = r.last_value;
+
+        r.parent = nullptr;
+
+        if (parent != nullptr) {
+            parent->move_request(r, *this);
+        }
+
+        last_raw_value = std::move(r.last_raw_value);
+
+        return *this;
+    }
 
     void request::resume() {
+        check_parent();
+
         parent->resume_request(*this);
     }
 
     void request::stop() {
+        check_parent();
+
         parent->stop_request(*this);
     }
 
     float request::get_value() {
+        check_parent();
+
         std::lock_guard<std::mutex> value_lock(value_mutex);
 
         if (refresh || !has_value()) {
@@ -33,6 +108,8 @@ namespace obd2 {
     }
 
     const std::vector<uint8_t> &request::get_raw() {
+        check_parent();
+        
         std::lock_guard<std::mutex> value_lock(value_mutex);
 
         if (refresh || !has_value()) {
@@ -56,6 +133,12 @@ namespace obd2 {
 
     std::string request::get_formula() const {
         return formula_str;    
+    }
+
+    void request::check_parent() {
+        if (parent == nullptr) {
+            throw std::runtime_error("Request has no parent");
+        }
     }
 
     bool request::has_value() const {

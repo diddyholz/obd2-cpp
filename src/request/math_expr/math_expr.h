@@ -4,18 +4,18 @@
 #include <vector>
 
 namespace obd2 {
-    enum math_op {
-        ADDITION = '+',
-        SUBTRACTION = '-',
-        MULTIPLICATION = '*',
-        DIVISION = '/',
-        EXPONENTIATION = '^',
-        VARIABLE,
-        RAW
-    };
-
     class math_expr {
         private:
+            enum math_op {
+                ADDITION = '+',
+                SUBTRACTION = '-',
+                MULTIPLICATION = '*',
+                DIVISION = '/',
+                EXPONENTIATION = '^',
+                VARIABLE,
+                RAW
+            };
+
             math_op operation;
             
             math_expr *left = nullptr;
@@ -34,12 +34,14 @@ namespace obd2 {
             std::string strip_parentheses(const std::string &formula);
 
         public:
+            math_expr();
             math_expr(const std::string &formula);
             math_expr(const math_expr &e);
             math_expr(math_expr &&e);
             ~math_expr();
 
             math_expr &operator=(math_expr &e);
+            math_expr &operator=(math_expr &&e);
 
             float solve(const std::vector<uint8_t> &input_values);
     };

@@ -72,6 +72,22 @@ namespace obd2 {
         s.rx_id = 0;
     }
 
+    socket_wrapper &socket_wrapper::operator=(socket_wrapper &&s) {
+        if (this == &s) {
+            return *this;
+        }
+
+        tx_id = s.tx_id;
+        rx_id = s.rx_id;
+        fd = s.fd;
+
+        s.fd = -1;
+        s.tx_id = 0;
+        s.rx_id = 0;
+
+        return *this;
+    }
+
     size_t socket_wrapper::read_msg(void *data, size_t size) {
         ssize_t nbytes = read(fd, data, size);
 

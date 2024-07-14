@@ -13,6 +13,8 @@ namespace obd2 {
 
     class request {
         private:
+            static constexpr float NO_RESPONSE = std::numeric_limits<float>::quiet_NaN();
+
             obd2 *parent;
 
             uint32_t ecu_id;
@@ -27,11 +29,18 @@ namespace obd2 {
             float last_value = NO_RESPONSE;
             bool refresh = false;
 
+            void check_parent();
             bool has_value() const;
 
         public:
+            request();
             request(uint32_t ecu_id, uint8_t service, uint16_t pid, const std::string &formula, bool refresh, obd2 &parent);
-            static const float NO_RESPONSE;
+            request(const request &r) = delete;
+            request(request &&r);
+            ~request();
+
+            request &operator=(const request &r) = delete;
+            request &operator=(request &&r);
             
             void resume();
             void stop();

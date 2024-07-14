@@ -3,30 +3,20 @@
 #include "../protocol.h"
 
 namespace obd2 {
+    command::command() {}
+
     command::command(uint32_t tx_id, uint32_t rx_id, uint8_t sid, uint16_t pid, bool refresh, protocol &parent) 
-        : parent(&parent), tx_id(tx_id), rx_id(rx_id), sid(sid), pid(pid), refresh(refresh) { }
+        : parent(&parent), tx_id(tx_id), rx_id(rx_id), sid(sid), pid(pid), refresh(refresh) { 
+        parent.add_command(*this);
+    }
 
-    command::command(command &c) 
-        : parent(c.parent), tx_id(c.tx_id), rx_id(c.rx_id), sid(c.sid), pid(c.pid), refresh(c.refresh) {
+    command::command(command &&c) {
         if (this == &c) {
             return;
         }
 
-        response_bufs[cur_response_buf] = c.get_current_buf();
-    }
-
-    command::command(command &&c)
-        : parent(c.parent), tx_id(c.tx_id), rx_id(c.rx_id), sid(c.sid), pid(c.pid), refresh(c.refresh) {
-        if (this == &c) {
-            return;
-        }
-
-        response_bufs[cur_response_buf] = std::move(c.get_current_buf());
-    }
-
-    command &command::operator=(command &c) {
-        if (this == &c) {
-            return *this;
+        if (parent != nullptr) {
+            parent->remove_command(*this);
         }
 
         parent = c.parent;
@@ -36,35 +26,82 @@ namespace obd2 {
         pid = c.pid;
         refresh = c.refresh;
 
-        response_bufs[cur_response_buf] = c.get_current_buf();
+        c.parent = nullptr;
+
+        if (parent != nullptr) {	
+            parent->move_command(c, *this);
+        }
+
+        response_buffer = std::move(c.get_buffer());
+    }
+
+    command::~command() {
+        if (parent != nullptr) {
+            parent->remove_command(*this);
+        }
+    }
+
+    command &command::operator=(command &&c) {
+        if (this == &c) {
+            return *this;
+        }
+
+        if (parent != nullptr) {
+            parent->remove_command(*this);
+        }
+
+        parent = c.parent;
+        tx_id = c.tx_id;
+        rx_id = c.rx_id;
+        sid = c.sid;
+        pid = c.pid;
+        refresh = c.refresh;
+
+        c.parent = nullptr;
+
+        if (parent != nullptr) {
+            parent->move_command(c, *this);
+        }
+
+        response_buffer = std::move(c.get_buffer());
 
         return *this;
     }
 
-    bool command::operator==(const command &r) const {
-        return (parent == r.parent 
-            && tx_id == r.tx_id 
-            && rx_id == r.rx_id 
-            && sid == r.sid 
-            && pid == r.pid);
+    bool command::operator==(const command &c) const {
+        // There should only be one instance of each command, the constructor makes sure of that.
+        // Therefore, comparing the addresses is enough. Famous last words.
+        return &c == this;
     }
 
-    std::vector<uint8_t> command::get_can_msg() const {        
-        std::vector<uint8_t> buf = { sid, static_cast<uint8_t>(pid & 0xFF) };
+    command::status command::get_response_status() {
+        return response_status;
+    }
+    
+    const std::vector<uint8_t> &command::get_buffer() {
+        // Check if buffers need to be cycled
+        if (response_updated) {
+            // Wait before switching if the next buffer is currently beeing written to
+            std::lock_guard<std::mutex> response_bufs_lock(response_bufs_mutex);
 
-        // Add second byte if PID is 16 bits
-        if (pid > 0xFF) {
-            buf.push_back(static_cast<uint8_t>(pid >> 8));
+            response_buffer = std::move(back_buffer);
+            back_buffer = std::vector<uint8_t>();
+
+            response_updated = false;
         }
 
-        return buf;
+        return response_buffer;
     }
 
     void command::resume() {
+        check_parent();
+
         parent->resume_command(*this);
     }
 
     void command::stop() {
+        check_parent();
+
         parent->stop_command(*this);
     }
 
@@ -84,24 +121,48 @@ namespace obd2 {
         return pid;
     }
 
-    void command::update_next_buf(const uint8_t *start, const uint8_t *end) {
-        std::lock_guard<std::mutex> response_bufs_lock(response_bufs_mutex);
+    command::status command::wait_for_response(uint32_t timeout_ms, uint32_t sample_us) {
+        auto start = std::chrono::steady_clock::now();
 
-        const size_t next_buf = (cur_response_buf + 1) % RESPONSE_BUF_COUNT;
-        response_bufs[next_buf].assign(start, end);
-        response_updated = true;
-    }
-    
-    const std::vector<uint8_t> &command::get_current_buf() {
-        // Check if buffers need to be cycled
-        if (response_updated) {
-            // Wait before switching if the next buffer is currently beeing written to
-            std::lock_guard<std::mutex> response_bufs_lock(response_bufs_mutex);
-
-            cur_response_buf = (cur_response_buf + 1) % RESPONSE_BUF_COUNT;
-            response_updated = false;
+        while (response_status == NO_RESPONSE 
+            && (std::chrono::steady_clock::now() - start) < std::chrono::milliseconds(timeout_ms)) {
+            std::this_thread::sleep_for(std::chrono::microseconds(sample_us));
         }
 
-        return response_bufs[cur_response_buf];
+        return response_status;
+    }
+
+    void command::check_parent() {
+        if (parent == nullptr) {
+            throw std::runtime_error("Command has no parent");
+        }
+    }
+
+    std::vector<uint8_t> command::get_can_msg() const {        
+        std::vector<uint8_t> buf = { sid, static_cast<uint8_t>(pid & 0xFF) };
+
+        // Add second byte if PID is 16 bits
+        if (pid > 0xFF) {
+            buf.push_back(static_cast<uint8_t>(pid >> 8));
+        }
+
+        return buf;
+    }
+
+    void command::update_back_buffer(const uint8_t *start, const uint8_t *end) {
+        std::lock_guard<std::mutex> response_bufs_lock(response_bufs_mutex);
+
+        back_buffer.assign(start, end);
+        response_updated = true;
+        response_status = OK;
+    }
+
+    void command::clear_response() {
+        std::lock_guard<std::mutex> response_bufs_lock(response_bufs_mutex);
+
+        back_buffer.clear();
+        response_updated = false;
+        response_buffer.clear();
+        response_status = NO_RESPONSE;
     }
 }
