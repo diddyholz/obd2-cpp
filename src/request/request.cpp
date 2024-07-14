@@ -5,7 +5,7 @@
 namespace obd2 {
     request::request() : parent(nullptr) { }
 
-    request::request(uint32_t ecu_id, uint8_t service, uint16_t pid, const std::string &formula, bool refresh, obd2 &parent)
+    request::request(uint32_t ecu_id, uint8_t service, uint16_t pid, obd2 &parent, const std::string &formula, bool refresh)
         : parent(&parent), ecu_id(ecu_id), service(service), pid(pid), formula_str(formula), formula(formula), refresh(refresh) { 
         // TODO: Support broadcast id (0x7DF)
         if (ecu_id < obd2::ECU_ID_FIRST || ecu_id > obd2::ECU_ID_LAST) {

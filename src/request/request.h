@@ -34,7 +34,7 @@ namespace obd2 {
 
         public:
             request();
-            request(uint32_t ecu_id, uint8_t service, uint16_t pid, const std::string &formula, bool refresh, obd2 &parent);
+            request(uint32_t ecu_id, uint8_t service, uint16_t pid, obd2 &parent, const std::string &formula = "", bool refresh = false);
             request(const request &r) = delete;
             request(request &&r);
             ~request();
