@@ -8,6 +8,12 @@ namespace obd2 {
     obd2::obd2(const char *if_name, uint32_t refresh_ms) 
         : protocol_instance(if_name, refresh_ms) {}
 
+    obd2::~obd2() {
+        for (auto &p : requests_command_map) {
+            p.first->parent = nullptr;
+        }
+    }
+
     void obd2::set_refresh_ms(uint32_t refresh_ms) {
         protocol_instance.set_refresh_ms(refresh_ms);
     }

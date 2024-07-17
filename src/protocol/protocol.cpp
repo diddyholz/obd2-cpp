@@ -35,6 +35,10 @@ namespace obd2 {
     protocol::~protocol() {
         listener_running = false;
         listener_thread.join();
+
+        for (auto &p : command_socket_map) {
+            p.first->parent = nullptr;
+        }
     }
 
     void protocol::command_listener() {
