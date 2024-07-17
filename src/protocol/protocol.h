@@ -1,5 +1,6 @@
 #pragma once
 
+#include <atomic>
 #include <cstdint>
 #include <list>
 #include <functional>
@@ -19,13 +20,15 @@ namespace obd2 {
             std::mutex commands_mutex;
 
             std::vector<socket_wrapper> sockets;
+            std::mutex sockets_mutex;
 
             unsigned int if_index;
-            uint32_t refresh_ms;
+            std::atomic<uint32_t> refresh_ms;
             std::thread listener_thread;
-            bool listener_running = true;
+            std::atomic<bool> listener_running = false;
 
             std::function<void(void)> refreshed_cb;
+            std::mutex refreshed_cb_mutex;
 
             void command_listener();
             void process_commands();
@@ -36,17 +39,19 @@ namespace obd2 {
             void add_command(command &c);
             void remove_command(command &c);
             void move_command(command &old_ref, command &new_ref);
+            void call_refreshed_cb();
 
         public:
+            protocol();
             protocol(const char *if_name, uint32_t refresh_ms = 1000);
             protocol(const protocol &p) = delete;
-            protocol(const protocol &&p) = delete;
+            protocol(protocol &&p);
             ~protocol();
             
             protocol &operator=(const protocol &p) = delete;
-            protocol &operator=(protocol &p) = delete;
+            protocol &operator=(protocol &&p);
 
-            void set_refresh_ms(uint32_t refresh_ms);
+            void set_refresh_ms(uint32_t ms);
             void set_refreshed_cb(const std::function<void(void)> &cb);
 
             friend class command;

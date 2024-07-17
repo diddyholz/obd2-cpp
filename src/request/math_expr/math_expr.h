@@ -1,5 +1,6 @@
 #pragma once
 
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -18,8 +19,8 @@ namespace obd2 {
 
             math_op operation;
             
-            math_expr *left = nullptr;
-            math_expr *right = nullptr;
+            std::unique_ptr<math_expr> left;
+            std::unique_ptr<math_expr> right;
             
             size_t value_index;
             uint8_t value_mask;
@@ -39,7 +40,6 @@ namespace obd2 {
             math_expr(const std::string &formula);
             math_expr(const math_expr &e);
             math_expr(math_expr &&e);
-            ~math_expr();
 
             math_expr &operator=(math_expr &e);
             math_expr &operator=(math_expr &&e);

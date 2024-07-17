@@ -13,9 +13,9 @@ namespace obd2 {
         
         public:
             socket_wrapper(uint32_t tx_id, uint32_t rx_id, unsigned int if_index);
-            ~socket_wrapper();
-            socket_wrapper(socket_wrapper &&s);
             socket_wrapper(const socket_wrapper &s) = delete;
+            socket_wrapper(socket_wrapper &&s);
+            ~socket_wrapper();
             
             socket_wrapper &operator=(const socket_wrapper &s) = delete;
             socket_wrapper &operator=(socket_wrapper &&s);

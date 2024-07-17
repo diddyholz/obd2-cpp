@@ -23,9 +23,9 @@ namespace obd2 {
         // Check if operator was found
         if (op_pos != std::string::npos) {
             operation = math_op(tmp_formula[op_pos]);
-            left = new math_expr(tmp_formula.substr(0, op_pos));
+            left = std::make_unique<math_expr>(tmp_formula.substr(0, op_pos));
             size_t len = tmp_formula.size() - (op_pos + 1);
-            right = new math_expr(tmp_formula.substr(op_pos + 1, len));
+            right = std::make_unique<math_expr>(tmp_formula.substr(op_pos + 1, len));
 
             optimize_raw();
             
@@ -47,39 +47,29 @@ namespace obd2 {
         : operation(e.operation), value_index(e.value_index), value_mask(e.value_mask), 
             value_shift(e.value_shift), value_raw(e.value_raw) {
         if (e.left) {
-            left = new math_expr(*(e.left));
+            left = std::make_unique<math_expr>(*e.left);
         }
 
         if (e.right) {
-            right = new math_expr(*(e.right));
+            right = std::make_unique<math_expr>(*e.right);
         }
     }
 
     math_expr::math_expr(math_expr &&e) 
-        : operation(e.operation), left(e.left), right(e.right), value_index(e.value_index), 
-            value_mask(e.value_mask), value_shift(e.value_shift), value_raw(e.value_raw) { 
-        e.left = nullptr;
-        e.right = nullptr;
-    }
-
-    math_expr::~math_expr() {
-        delete left;
-        delete right;
-    }
+        : operation(e.operation), left(std::move(e.left)), 
+            right(std::move(e.right)), value_index(e.value_index), 
+            value_mask(e.value_mask), value_shift(e.value_shift), value_raw(e.value_raw) { }
 
     math_expr &math_expr::operator=(math_expr &e) {
-        delete left;
-        delete right;
-
         if (e.left) {
-            left = new math_expr(*(e.left));
+            left = std::make_unique<math_expr>(*e.left);
         }
         else {
             left = nullptr;
         }
 
         if (e.right) {
-            right = new math_expr(*(e.right));
+            right = std::make_unique<math_expr>(*e.right);
         }
         else {
             right = nullptr;
@@ -90,27 +80,18 @@ namespace obd2 {
         value_mask = e.value_mask;
         value_shift = e.value_shift;
         value_raw = e.value_raw;
-
-        e.left = nullptr;
-        e.right = nullptr;
         
         return *this;
     }
 
     math_expr &math_expr::operator=(math_expr &&e) {
-        delete left;
-        delete right;
-
         operation = e.operation;
-        left = e.left;
-        right = e.right;
+        left = std::move(e.left);
+        right = std::move(e.right);
         value_index = e.value_index;
         value_mask = e.value_mask;
         value_shift = e.value_shift;
         value_raw = e.value_raw;
-
-        e.left = nullptr;
-        e.right = nullptr;
 
         return *this;
     }
@@ -166,9 +147,7 @@ namespace obd2 {
         
         value_raw = solve({});
         operation = RAW;
-        
-        delete left;
-        delete right;
+
         left = nullptr;
         right = nullptr;
     }

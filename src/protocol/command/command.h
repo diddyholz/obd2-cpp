@@ -1,5 +1,6 @@
 #pragma once
 
+#include <atomic>
 #include <cstdint>
 #include <cstdlib>
 #include <vector>
@@ -20,17 +21,19 @@ namespace obd2 {
         private:
             protocol *parent;
 
-            std::mutex response_bufs_mutex;
             std::vector<uint8_t> back_buffer;
             std::vector<uint8_t> response_buffer;
-            bool response_updated = false;
-            status response_status = NO_RESPONSE;
+            std::mutex response_bufs_mutex;
+
+            std::atomic<bool> response_updated = false;
+            std::atomic<status> response_status = NO_RESPONSE;
 
             uint32_t tx_id;
             uint32_t rx_id;
             uint8_t sid;
             uint16_t pid;
-            bool refresh;
+            
+            std::atomic<bool> refresh;
 
             void check_parent();
             std::vector<uint8_t> get_can_msg();

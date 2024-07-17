@@ -24,7 +24,6 @@ namespace obd2 {
 
             protocol protocol_instance;
 
-            // TODO: Thread safety
             std::list<command> commands;
             std::unordered_map<request *, std::reference_wrapper<command>> requests_command_map;
 
@@ -44,13 +43,14 @@ namespace obd2 {
             bool get_ecu(uint32_t ecu_id, vehicle_info::ecu &ecu);
 
         public:
+            obd2();
             obd2(const char *if_name, uint32_t refresh_ms = 1000);
             obd2(const obd2 &i) = delete;
-            obd2(const obd2 &&i) = delete;
+            obd2(obd2 &&i);
             ~obd2();
 
             obd2 &operator=(const obd2 &i) = delete;
-            obd2 &operator=(obd2 &&i) = delete;
+            obd2 &operator=(obd2 &&i);
 
             void set_refreshed_cb(const std::function<void(void)> &cb);
             void set_refresh_ms(uint32_t refresh_ms);

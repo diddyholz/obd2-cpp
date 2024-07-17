@@ -5,13 +5,53 @@
 #include <stdexcept>
 
 namespace obd2 {
+    obd2::obd2() {}
+
     obd2::obd2(const char *if_name, uint32_t refresh_ms) 
         : protocol_instance(if_name, refresh_ms) {}
+
+    obd2::obd2(obd2 &&o) {
+        if (this == &o) {
+            return;
+        }
+
+        for (auto &p : requests_command_map) {
+            p.first->parent = nullptr;
+        }
+
+        protocol_instance = std::move(o.protocol_instance);
+        commands = std::move(o.commands);
+        requests_command_map = std::move(o.requests_command_map);
+
+        for (auto &p : requests_command_map) {
+            p.first->parent = this;
+        }
+    }
 
     obd2::~obd2() {
         for (auto &p : requests_command_map) {
             p.first->parent = nullptr;
         }
+    }
+
+    obd2 &obd2::operator=(obd2 &&o) {
+        if (this == &o) {
+            return *this;
+        }
+
+        for (auto &p : requests_command_map) {
+            p.first->parent = nullptr;
+        }
+
+        protocol_instance = std::move(o.protocol_instance);
+        commands = std::move(o.commands);
+        requests_command_map = std::move(o.requests_command_map);
+
+        for (auto &p : requests_command_map) {
+            p.first->parent = this;
+        }
+
+        return *this;
     }
 
     void obd2::set_refreshed_cb(const std::function<void(void)> &cb) {

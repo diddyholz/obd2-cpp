@@ -16,7 +16,7 @@ namespace obd2 {
             return;
         }
 
-        if (parent != nullptr) {
+        if (parent) {
             parent->remove_command(*this);
         }
 
@@ -25,19 +25,19 @@ namespace obd2 {
         rx_id = c.rx_id;
         sid = c.sid;
         pid = c.pid;
-        refresh = c.refresh;
+        refresh.store(c.refresh);
 
-        c.parent = nullptr;
-
-        if (parent != nullptr) {	
+        if (c.parent) {	
             parent->move_command(c, *this);
+            c.parent = nullptr;
         }
 
+        std::lock_guard<std::mutex> response_bufs_lock(c.response_bufs_mutex);
         response_buffer = std::move(c.get_buffer());
     }
 
     command::~command() {
-        if (parent != nullptr) {
+        if (parent) {
             parent->remove_command(*this);
         }
     }
@@ -47,7 +47,7 @@ namespace obd2 {
             return *this;
         }
 
-        if (parent != nullptr) {
+        if (parent) {
             parent->remove_command(*this);
         }
 
@@ -56,15 +56,16 @@ namespace obd2 {
         rx_id = c.rx_id;
         sid = c.sid;
         pid = c.pid;
-        refresh = c.refresh;
+        refresh.store(c.refresh);
 
-        c.parent = nullptr;
-
-        if (parent != nullptr) {
+        if (c.parent) {
             parent->move_command(c, *this);
+            c.parent = nullptr;
         }
 
+        std::lock_guard<std::mutex> response_bufs_lock(c.response_bufs_mutex);
         response_buffer = std::move(c.get_buffer());
+        response_updated = false;
 
         return *this;
     }
@@ -82,7 +83,6 @@ namespace obd2 {
     const std::vector<uint8_t> &command::get_buffer() {
         // Check if buffers need to be cycled
         if (response_updated) {
-            // Wait before switching if the next buffer is currently beeing written to
             std::lock_guard<std::mutex> response_bufs_lock(response_bufs_mutex);
 
             response_buffer = std::move(back_buffer);
@@ -132,7 +132,7 @@ namespace obd2 {
     }
 
     void command::check_parent() {
-        if (parent == nullptr) {
+        if (!parent) {
             throw std::runtime_error("Command has no parent");
         }
     }

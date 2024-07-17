@@ -21,6 +21,8 @@
 #define UDS_SID_NEGATIVE    0x7F
 
 namespace obd2 {
+    protocol::protocol() {}
+
     protocol::protocol(const char *if_name, uint32_t refresh_ms) 
         : refresh_ms(refresh_ms) {
         
@@ -30,7 +32,46 @@ namespace obd2 {
         }
 
         // Start background command listener thread
+        listener_running = true;
         listener_thread = std::thread(&protocol::command_listener, this);
+    }
+
+    protocol::protocol(protocol &&p) {
+        if (this == &p) {
+            return;
+        }
+
+        if (listener_running) {
+            listener_running = false;
+            listener_thread.join();
+        }
+
+        listener_running.store(p.listener_running);
+        refresh_ms.store(p.refresh_ms);
+
+        if_index = p.if_index;
+
+        if (listener_running) {
+            listener_thread = std::thread(&protocol::command_listener, this);
+        }
+
+        refreshed_cb = p.refreshed_cb;
+
+        std::lock_guard<std::mutex> commands_lock(commands_mutex);
+        std::lock_guard<std::mutex> sockets_lock(sockets_mutex);
+        std::lock_guard<std::mutex> refreshed_cb_lock(refreshed_cb_mutex);
+
+        for (auto &p : command_socket_map) {
+            p.first->parent = nullptr;
+        }
+
+        command_socket_map = std::move(p.command_socket_map);
+        sockets = std::move(p.sockets);
+        refreshed_cb = std::move(p.refreshed_cb);
+
+        for (auto &p : command_socket_map) {
+            p.first->parent = this;
+        }
     }
 
     protocol::~protocol() {
@@ -40,6 +81,44 @@ namespace obd2 {
         for (auto &p : command_socket_map) {
             p.first->parent = nullptr;
         }
+    }
+
+    protocol &protocol::operator=(protocol &&p) {
+        if (this == &p) {
+            return *this;
+        }
+
+        if (listener_running) {
+            listener_running = false;
+            listener_thread.join();
+        }
+
+        refresh_ms.store(p.refresh_ms);
+        listener_running.store(p.listener_running);
+        
+        if_index = p.if_index;
+
+        if (listener_running) {
+            listener_thread = std::thread(&protocol::command_listener, this);
+        }
+
+        std::lock_guard<std::mutex> commands_lock(commands_mutex);
+        std::lock_guard<std::mutex> sockets_lock(sockets_mutex);
+        std::lock_guard<std::mutex> refreshed_cb_lock(refreshed_cb_mutex);
+
+        for (auto &p : command_socket_map) {
+            p.first->parent = nullptr;
+        }
+
+        command_socket_map = std::move(p.command_socket_map);
+        sockets = std::move(p.sockets);
+        refreshed_cb = std::move(p.refreshed_cb);
+
+        for (auto &p : command_socket_map) {
+            p.first->parent = this;
+        }
+
+        return *this;
     }
 
     void protocol::command_listener() {
@@ -52,16 +131,15 @@ namespace obd2 {
             std::this_thread::sleep_until(start + (delay / 2));
 
             process_sockets();
+            call_refreshed_cb();
 
-            if (refreshed_cb) {
-                refreshed_cb();
-            }
-            
             std::this_thread::sleep_until(start + delay);
         }
     }
 
     socket_wrapper &protocol::get_socket(uint32_t tx_id, uint32_t rx_id) {
+        std::lock_guard<std::mutex> sockets_lock(sockets_mutex);
+
         // Check if socket already exists
         for (socket_wrapper &s : sockets) {
             if (s.tx_id == tx_id && s.rx_id == rx_id) {
@@ -88,6 +166,8 @@ namespace obd2 {
     }
 
     void protocol::process_sockets() {
+        std::lock_guard<std::mutex> sockets_lock(sockets_mutex);
+
         // Go through each socket and process incoming message
         for (socket_wrapper &s : sockets) {
             process_socket(s);
@@ -148,8 +228,13 @@ namespace obd2 {
         }
     }
 
-    void protocol::set_refresh_ms(uint32_t refresh_ms) {
-        refresh_ms = refresh_ms;
+    void protocol::set_refresh_ms(uint32_t ms) {
+        refresh_ms = ms;
+    }
+
+    void protocol::set_refreshed_cb(const std::function<void(void)> &cb) {
+        std::lock_guard<std::mutex> refreshed_cb_lock(refreshed_cb_mutex);
+        refreshed_cb = cb;
     }
 
     void protocol::add_command(command &c) {
@@ -184,7 +269,11 @@ namespace obd2 {
         command_socket_map.emplace(&new_ref, socket);
     }
 
-    void protocol::set_refreshed_cb(const std::function<void(void)> &cb) {
-        refreshed_cb = cb;
+    void protocol::call_refreshed_cb() {
+        std::lock_guard<std::mutex> refreshed_cb_lock(refreshed_cb_mutex);
+
+        if (refreshed_cb) {
+            refreshed_cb();
+        }
     }
 }
