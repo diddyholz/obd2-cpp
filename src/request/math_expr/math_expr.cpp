@@ -26,6 +26,8 @@ namespace obd2 {
             left = new math_expr(tmp_formula.substr(0, op_pos));
             size_t len = tmp_formula.size() - (op_pos + 1);
             right = new math_expr(tmp_formula.substr(op_pos + 1, len));
+
+            optimize_raw();
             
             return;
         }
@@ -143,6 +145,7 @@ namespace obd2 {
                     return 0.0;
                 }
 
+                // TODO: allow twos complement
                 return (input_values[value_index] & value_mask) >> value_shift;
             case RAW:
                 return value_raw;
@@ -150,6 +153,24 @@ namespace obd2 {
             default:
                 return 0.0;
         }
+    }
+
+    void math_expr::optimize_raw() {
+        if (!left || !right) {
+            return;
+        }
+
+        if (left->operation != RAW || right->operation != RAW) {
+            return;
+        }
+        
+        value_raw = solve({});
+        operation = RAW;
+        
+        delete left;
+        delete right;
+        left = nullptr;
+        right = nullptr;
     }
 
     size_t math_expr::find_operator(const std::string &formula) const {

@@ -4,6 +4,7 @@
 #include <cerrno>
 #include <chrono>
 #include <cstring>
+#include <functional>
 #include <net/if.h>
 #include <stdexcept>
 #include <sys/ioctl.h>
@@ -42,12 +43,21 @@ namespace obd2 {
     }
 
     void protocol::command_listener() {
+        const std::chrono::milliseconds delay = std::chrono::milliseconds(refresh_ms);
+
         while (listener_running) {
+            auto start = std::chrono::steady_clock::now();
+
             process_commands();
-            std::this_thread::sleep_for(std::chrono::milliseconds(refresh_ms / 2));
+            std::this_thread::sleep_until(start + (delay / 2));
 
             process_sockets();
-            std::this_thread::sleep_for(std::chrono::milliseconds(refresh_ms / 2));
+
+            if (refreshed_cb) {
+                refreshed_cb();
+            }
+            
+            std::this_thread::sleep_until(start + delay);
         }
     }
 
@@ -172,5 +182,9 @@ namespace obd2 {
 
         command_socket_map.erase(&old_ref);
         command_socket_map.emplace(&new_ref, socket);
+    }
+
+    void protocol::set_refreshed_cb(const std::function<void(void)> &cb) {
+        refreshed_cb = cb;
     }
 }

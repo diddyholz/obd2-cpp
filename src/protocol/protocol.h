@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <list>
+#include <functional>
 #include <vector>
 #include <thread>
 #include <unordered_map>
@@ -24,6 +25,8 @@ namespace obd2 {
             std::thread listener_thread;
             bool listener_running = true;
 
+            std::function<void(void)> refreshed_cb;
+
             void command_listener();
             void process_commands();
             void process_sockets();
@@ -44,6 +47,7 @@ namespace obd2 {
             protocol &operator=(protocol &p) = delete;
 
             void set_refresh_ms(uint32_t refresh_ms);
+            void set_refreshed_cb(const std::function<void(void)> &cb);
 
             friend class command;
     };

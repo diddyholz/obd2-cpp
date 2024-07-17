@@ -14,6 +14,10 @@ namespace obd2 {
         }
     }
 
+    void obd2::set_refreshed_cb(const std::function<void(void)> &cb) {
+        protocol_instance.set_refreshed_cb(cb);
+    }
+
     void obd2::set_refresh_ms(uint32_t refresh_ms) {
         protocol_instance.set_refresh_ms(refresh_ms);
     }
@@ -26,7 +30,11 @@ namespace obd2 {
             pids.insert(pids.end(), pids_in_range.begin(), pids_in_range.end());
         
             // Check whether next supported pids command is supported
-            if (pids[pids.size() - 1] != (pid_range + 1) * PID_SUPPORT_RANGE) {
+            if (pids_in_range.size() == 0) {
+                break;
+            }
+
+            if (*(pids.end() - 1) != ((pid_range + 1) * PID_SUPPORT_RANGE)) {
                 break;
             }
         }

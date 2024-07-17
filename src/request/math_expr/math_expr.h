@@ -27,6 +27,7 @@ namespace obd2 {
             
             float value_raw;
 
+            void optimize_raw();
             bool parse_raw(const std::string &formula);
             bool parse_variable(const std::string &formula);
             size_t find_operator(const std::string &formula) const;
