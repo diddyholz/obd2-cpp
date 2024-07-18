@@ -11,25 +11,17 @@ namespace obd2 {
         : protocol_instance(if_name, refresh_ms) {}
 
     obd2::obd2(obd2 &&o) {
-        if (this == &o) {
-            return;
-        }
-
-        for (auto &p : requests_command_map) {
-            p.first->parent = nullptr;
-        }
-
         protocol_instance = std::move(o.protocol_instance);
-        commands = std::move(o.commands);
-        requests_command_map = std::move(o.requests_command_map);
+        req_combinations = std::move(o.req_combinations);
+        req_combinations_map = std::move(o.req_combinations_map);
 
-        for (auto &p : requests_command_map) {
+        for (auto &p : req_combinations_map) {
             p.first->parent = this;
         }
     }
 
     obd2::~obd2() {
-        for (auto &p : requests_command_map) {
+        for (auto &p : req_combinations_map) {
             p.first->parent = nullptr;
         }
     }
@@ -39,15 +31,15 @@ namespace obd2 {
             return *this;
         }
 
-        for (auto &p : requests_command_map) {
+        for (auto &p : req_combinations_map) {
             p.first->parent = nullptr;
         }
 
         protocol_instance = std::move(o.protocol_instance);
-        commands = std::move(o.commands);
-        requests_command_map = std::move(o.requests_command_map);
+        req_combinations = std::move(o.req_combinations);
+        req_combinations_map = std::move(o.req_combinations_map);
 
-        for (auto &p : requests_command_map) {
+        for (auto &p : req_combinations_map) {
             p.first->parent = this;
         }
 
@@ -83,13 +75,14 @@ namespace obd2 {
     }
     
     std::vector<uint8_t> obd2::get_supported_pids(uint32_t ecu_id, uint8_t service, uint8_t pid_offset) {
-        command c(ecu_id, ecu_id + ECU_ID_RES_OFFSET, service, pid_offset, false, protocol_instance);
+        command c(ecu_id, ecu_id + ECU_ID_RES_OFFSET, service, pid_offset, protocol_instance);
 
         if (c.wait_for_response() != command::OK) {
             return std::vector<uint8_t>();
         }
-
-        return decode_pids_supported(c.get_buffer(), pid_offset);
+        
+        std::vector<uint8_t> data(c.get_buffer().begin() + 1, c.get_buffer().end());
+        return decode_pids_supported(data, pid_offset);
     }
 
     std::vector<dtc> obd2::get_dtcs(uint32_t ecu_id) {
@@ -97,18 +90,19 @@ namespace obd2 {
         dtc::status statuses[] = { dtc::STORED, dtc::PENDING, dtc::PERMANENT };
 
         for (dtc::status s : statuses) {
-            command c(ecu_id, ecu_id + ECU_ID_RES_OFFSET, s, 0, false, protocol_instance);
+            command c(ecu_id, ecu_id + ECU_ID_RES_OFFSET, s, 0, protocol_instance);
 
             // Wait 60 seconds for response
             if (c.wait_for_response(60 * 1000) != command::OK) {
                 continue;
             }
 
-            if (c.get_buffer().size() == 0) {
+            if (c.get_buffer().size() < 2) {
                 continue;
             }
 
-            std::vector<dtc> response_dtcs = decode_dtcs(c.get_buffer(), s);
+            std::vector<uint8_t> data(c.get_buffer().begin() + 1, c.get_buffer().end());
+            std::vector<dtc> response_dtcs = decode_dtcs(data, s);
             dtcs.insert(dtcs.end(), response_dtcs.begin(), response_dtcs.end());
         }
 
@@ -123,10 +117,11 @@ namespace obd2 {
         
         // Try to get vin
         if (std::find(pids.begin(), pids.end(), 0x02) != pids.end()) {
-            command c(ECU_ID_FIRST, ECU_ID_FIRST + ECU_ID_RES_OFFSET, 0x09, 0x02, false, protocol_instance);
+            command c(ECU_ID_FIRST, ECU_ID_FIRST + ECU_ID_RES_OFFSET, 0x09, 0x02, protocol_instance);
 
             if (c.wait_for_response() == command::OK) {
-                info.vin = std::string(c.get_buffer().begin(), c.get_buffer().end());
+                const std::vector<uint8_t> &res = c.get_buffer();
+                info.vin = std::string(reinterpret_cast<const char *>(res.data() + 1));
             }
         }
 
@@ -145,7 +140,7 @@ namespace obd2 {
 
     void obd2::add_request(request &r) {
         // Check if request already exists
-        for (auto &p : requests_command_map) {
+        for (auto &p : req_combinations_map) {
             request *existing_r = p.first;
             
             if (existing_r->ecu_id == r.ecu_id 
@@ -156,58 +151,76 @@ namespace obd2 {
             }
         }
 
-        command &c = get_command(r.ecu_id, r.service, r.pid);
-        requests_command_map.emplace(&r, c);
+        req_combination &c = get_combination(r.ecu_id, r.service, r.pid, r.refresh && !r.formula_str.empty());
+        c.add_request(r);
+
+        req_combinations_map.emplace(&r, c);
     }
 
     void obd2::remove_request(request &r) {
         stop_request(r);
 
-        command &c = requests_command_map.at(&r);
-        requests_command_map.erase(&r);
-
-        // Check if command is still used by other requests, if not remove it
-        for (auto p : requests_command_map) {
-            if (&p.second.get() == &c) {
-                return;
-            }
+        req_combination &c = req_combinations_map.at(&r);
+        
+        if (c.remove_request(r)) {
+            req_combinations.remove(c);
         }
-
-        commands.remove(c);
     }
 
     void obd2::move_request(request &old_ref, request &new_ref) {
-        command &c = requests_command_map.at(&old_ref);
-        requests_command_map.erase(&old_ref);
-        requests_command_map.emplace(&new_ref, c);
+        req_combination &c = req_combinations_map.at(&old_ref);
+        c.move_request(old_ref, new_ref);
+
+        req_combinations_map.erase(&old_ref);
+        req_combinations_map.emplace(&new_ref, c);
     }
 
-    command &obd2::get_command(uint32_t ecu_id, uint8_t service, uint16_t pid) {
-        for (auto &c : commands) {
-            if (c.get_tx_id() == ecu_id && c.get_sid() == service && c.get_pid() == pid) {
-                return c;
+    req_combination &obd2::get_combination(uint32_t ecu_id, uint8_t service, uint16_t pid, bool allow_pid_chain) {
+        // First, check if any command already contains the requested pid
+        for (auto &p : req_combinations_map) {
+            command &c = p.second.get().get_command();
+
+            if (c.get_tx_id() == ecu_id && c.get_sid() == service && c.contains_pid(pid)) {
+                return p.second;
             }
         }       
-        
-        // If no command was found, create a new one
-        return commands.emplace_back(ecu_id, ecu_id + ECU_ID_RES_OFFSET, service, pid, true, protocol_instance);
-    }
-    
-    // TODO: For faster counting, use a separate map<command *, size_t> instead of iterating over all requests
-    size_t obd2::requests_using_command(const command &c) const {
-        size_t count = 0;
 
-        for (auto &p : requests_command_map) {
-            if (&p.second.get() != &c) {
-                continue;
-            }
+        // If not, check if there is any command to which the pid request can be added to
+        if (allow_pid_chain && (service == 0x01 || service == 0x02)) {
+            for (auto &p : req_combinations_map) {
+                req_combination &c = p.second.get();
+                command &cmd = c.get_command();
 
-            if (p.first->refresh || !p.first->has_value()) {
-                count++;
+                if (cmd.get_tx_id() != ecu_id || cmd.get_sid() != service) {
+                    continue;
+                }
+                
+                if (!c.get_allow_pid_chain()) {
+                    continue;
+                }
+
+                if (c.get_pid_count() >= 6 && !c.contains_pid(pid)) {
+                    continue;
+                }
+
+                return c;
             }
         }
 
-        return count;
+        return req_combinations.emplace_back(
+            ecu_id, service, pid, protocol_instance, true, allow_pid_chain
+        );
+    }
+
+    void obd2::resume_request(request &r) {
+        if (r.refresh) {
+            return;
+        }
+
+        r.refresh = true;
+
+        req_combination &c = req_combinations_map.at(&r);
+        c.request_resumed();
     }
 
     void obd2::stop_request(request &r) {
@@ -217,31 +230,41 @@ namespace obd2 {
     
         r.refresh = false;
 
-        command &c = requests_command_map.at(&r);
-
-        if (requests_using_command(c) == 0) {
-            c.stop();
-        }
+        req_combination &c = req_combinations_map.at(&r);
+        c.request_stopped();
     }
 
-    void obd2::resume_request(request &r) {
-        if (r.refresh) {
-            return;
+    std::vector<uint8_t> obd2::get_data(request &r) {
+        req_combination &c = req_combinations_map.at(&r);
+        const std::vector<uint8_t> &data = c.get_command().get_buffer();
+        std::vector<uint8_t> decoded_data;
+
+        if (c.get_command().get_response_status() == command::ERROR) {
+            return decoded_data;
         }
 
-        r.refresh = true;
-        requests_command_map.at(&r).get().resume();
-    }
-
-    const std::vector<uint8_t> &obd2::get_data(const request &r) {
-        command &c = requests_command_map.at(const_cast<request *>((&r)));
-
-        if (c.get_response_status() == command::ERROR) {
-            static const std::vector<uint8_t> error_data = { };
-            return error_data;
+        // If the request is not part of a chain, return the raw response minus the pid at the front
+        if (c.get_pid_count() == 1) {
+            decoded_data = std::vector<uint8_t>(data.begin() + 1, data.end());
+            return decoded_data;
         }
 
-        return c.get_buffer();
+        // Else decode the response
+        decoded_data.reserve(r.get_expected_size());
+
+        for (size_t i = 0; i < data.size(); ) {
+            if (data[i] != r.pid) {
+                i += c.get_var_count(data[i]) + 1;
+                continue;
+            }
+
+            auto data_start = data.begin() + i + 1;
+
+            decoded_data = std::vector<uint8_t>(data_start, data_start + r.get_expected_size());
+            break;
+        }
+
+        return decoded_data;
     }
     
     std::vector<uint8_t> obd2::decode_pids_supported(const std::vector<uint8_t> &data, uint8_t pid_offset) {
@@ -320,11 +343,11 @@ namespace obd2 {
 
         // Try to get ECU name
         if (std::find(pids.begin(), pids.end(), 0x0A) != pids.end()) {
-            command c(ecu_id, ecu_id + ECU_ID_RES_OFFSET, 0x09, 0x0A, false, protocol_instance);
+            command c(ecu_id, ecu_id + ECU_ID_RES_OFFSET, 0x09, 0x0A, protocol_instance);
 
             if (c.wait_for_response() == command::OK) {
                 const std::vector<uint8_t> &res = c.get_buffer();
-                ecu.name.assign(reinterpret_cast<const char *>(res.data()));
+                ecu.name.assign(reinterpret_cast<const char *>(res.data() + 1));
             }
         }
 

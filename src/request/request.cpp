@@ -76,6 +76,11 @@ namespace obd2 {
 
         return *this;
     }
+    
+    bool request::operator==(const request &r) const {
+        // There should only ever be one identical request, so we can just compare the addresses
+        return this == &r;
+    }
 
     void request::resume() {
         check_parent();
@@ -133,6 +138,14 @@ namespace obd2 {
 
     std::string request::get_formula() const {
         return formula_str;    
+    }
+
+    size_t request::get_expected_size() {
+        return formula.get_variable_count();
+    }
+
+    bool request::get_refresh() const {
+        return refresh;
     }
 
     void request::check_parent() {

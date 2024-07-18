@@ -8,7 +8,7 @@
 #include <stdexcept>
 
 namespace obd2 {
-    math_expr::math_expr() : operation(RAW), value_raw(0.0) {}
+    math_expr::math_expr() : math_expr("") {}
 
     math_expr::math_expr(const std::string &formula) {
         if (formula == "") {
@@ -45,7 +45,7 @@ namespace obd2 {
 
     math_expr::math_expr(const math_expr &e) 
         : operation(e.operation), value_index(e.value_index), value_mask(e.value_mask), 
-            value_shift(e.value_shift), value_raw(e.value_raw) {
+            value_shift(e.value_shift), value_raw(e.value_raw), variable_count(e.variable_count) {
         if (e.left) {
             left = std::make_unique<math_expr>(*e.left);
         }
@@ -57,8 +57,8 @@ namespace obd2 {
 
     math_expr::math_expr(math_expr &&e) 
         : operation(e.operation), left(std::move(e.left)), 
-            right(std::move(e.right)), value_index(e.value_index), 
-            value_mask(e.value_mask), value_shift(e.value_shift), value_raw(e.value_raw) { }
+            right(std::move(e.right)), value_index(e.value_index), value_mask(e.value_mask), 
+            value_shift(e.value_shift), value_raw(e.value_raw), variable_count(e.variable_count) { }
 
     math_expr &math_expr::operator=(math_expr &e) {
         if (e.left) {
@@ -80,6 +80,7 @@ namespace obd2 {
         value_mask = e.value_mask;
         value_shift = e.value_shift;
         value_raw = e.value_raw;
+        variable_count = e.variable_count;
         
         return *this;
     }
@@ -92,6 +93,7 @@ namespace obd2 {
         value_mask = e.value_mask;
         value_shift = e.value_shift;
         value_raw = e.value_raw;
+        variable_count = e.variable_count;
 
         return *this;
     }
@@ -134,6 +136,36 @@ namespace obd2 {
             default:
                 return 0.0;
         }
+    }
+
+    uint32_t math_expr::get_variable_count() {
+        if (variable_count != -1) {
+            return variable_count;
+        }
+
+        uint32_t count = 0;
+        
+        if (operation == VARIABLE) {
+            count = value_index + 1;
+        }
+
+        if (left) {
+            uint32_t l_count = left->get_variable_count();
+        
+            if (l_count > count) {
+                count = l_count;
+            }
+        }
+
+        if (right) {
+            uint32_t r_count = right->get_variable_count();
+        
+            if (r_count > count) {
+                count = r_count;
+            }
+        }
+
+        return variable_count = count;
     }
 
     void math_expr::optimize_raw() {

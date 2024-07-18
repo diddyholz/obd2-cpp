@@ -11,7 +11,7 @@
 
 #define UDS_MSG_MAX             1024
 
-#define UDS_RX_ID_OFFSET        0x40
+#define UDS_RX_SID_OFFSET        0x40
 #define UDS_RES_SID             0x00
 #define UDS_RES_PID             0x01
 #define UDS_RES_DATA            0x02
@@ -193,7 +193,7 @@ namespace obd2 {
         uint8_t nrc = 0;
         uint8_t sid = buffer[UDS_RES_SID];
         uint8_t pid = buffer[UDS_RES_PID];
-        uint8_t *data = &buffer[UDS_RES_DATA];
+        uint8_t *data = &buffer[UDS_RES_PID];
 
         if (sid == UDS_SID_NEGATIVE) {
             nrc = buffer[UDS_RES_NRC];
@@ -207,8 +207,8 @@ namespace obd2 {
 
             if (c->tx_id != s.tx_id
                 || c->rx_id != s.rx_id
-                || c->sid != (sid - UDS_RX_ID_OFFSET) 
-                || (c->pid != pid && nrc == 0)) {
+                || c->sid != (sid - UDS_RX_SID_OFFSET) 
+                || (!c->contains_pid(pid) && nrc == 0)) {
                 continue;
             }
 
@@ -221,7 +221,7 @@ namespace obd2 {
                 c->response_status = command::status::ERROR;
             }
             else {
-                c->update_back_buffer(data, data + size - UDS_RES_DATA);
+                c->update_back_buffer(data, data + size - UDS_RES_PID);
             }
 
             return;
@@ -245,7 +245,7 @@ namespace obd2 {
             if (p.first->tx_id == c.tx_id 
                 && p.first->rx_id == c.rx_id
                 && p.first->sid == c.sid
-                && p.first->pid == c.pid) {
+                && p.first->pids == c.pids) {
                 throw std::invalid_argument("Command already exists");
             }
         }

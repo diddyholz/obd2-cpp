@@ -41,6 +41,7 @@ namespace obd2 {
 
             request &operator=(const request &r) = delete;
             request &operator=(request &&r);
+            bool operator==(const request &r) const;
             
             void resume();
             void stop();
@@ -51,6 +52,8 @@ namespace obd2 {
             uint8_t get_service() const;
             uint16_t get_pid() const;
             std::string get_formula() const;
+            size_t get_expected_size();
+            bool get_refresh() const;
 
             friend class obd2;
     };

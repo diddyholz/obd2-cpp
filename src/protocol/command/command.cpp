@@ -5,26 +5,16 @@
 namespace obd2 {
     command::command() {}
 
-    command::command(uint32_t tx_id, uint32_t rx_id, uint8_t sid, uint16_t pid, bool refresh, protocol &parent) 
-        : parent(&parent), tx_id(tx_id), rx_id(rx_id), sid(sid), pid(pid), refresh(refresh) { 
+    command::command(uint32_t tx_id, uint32_t rx_id, uint8_t sid, uint16_t pid, protocol &parent, bool refresh) 
+        : command(tx_id, rx_id, sid, std::vector<uint16_t>({ pid }), parent, refresh) {}
+
+    command::command(uint32_t tx_id, uint32_t rx_id, uint8_t sid, const std::vector<uint16_t> &pids, protocol &parent, bool refresh) 
+        : parent(&parent), tx_id(tx_id), rx_id(rx_id), sid(sid), pids(pids), refresh(refresh) { 
         parent.add_command(*this);
         parent.process_command(*this);
     }
 
-    command::command(command &&c) {
-        if (this == &c) {
-            return;
-        }
-
-        if (parent) {
-            parent->remove_command(*this);
-        }
-
-        parent = c.parent;
-        tx_id = c.tx_id;
-        rx_id = c.rx_id;
-        sid = c.sid;
-        pid = c.pid;
+    command::command(command &&c) : parent(c.parent), tx_id(c.tx_id), rx_id(c.rx_id), sid(c.sid) {
         refresh.store(c.refresh);
 
         if (c.parent) {	
@@ -32,8 +22,11 @@ namespace obd2 {
             c.parent = nullptr;
         }
 
-        std::lock_guard<std::mutex> response_bufs_lock(c.response_bufs_mutex);
         response_buffer = std::move(c.get_buffer());
+        response_status.store(c.response_status);
+        response_updated = false;
+
+        pids = std::move(c.get_pids());
     }
 
     command::~command() {
@@ -55,7 +48,6 @@ namespace obd2 {
         tx_id = c.tx_id;
         rx_id = c.rx_id;
         sid = c.sid;
-        pid = c.pid;
         refresh.store(c.refresh);
 
         if (c.parent) {
@@ -63,9 +55,14 @@ namespace obd2 {
             c.parent = nullptr;
         }
 
-        std::lock_guard<std::mutex> response_bufs_lock(c.response_bufs_mutex);
+        std::lock_guard<std::mutex> response_bufs_lock(response_bufs_mutex);
+        std::lock_guard<std::mutex> pids_lock(pids_mutex);
+
         response_buffer = std::move(c.get_buffer());
+        response_status.store(c.response_status);
         response_updated = false;
+
+        pids = std::move(c.get_pids());
 
         return *this;
     }
@@ -114,8 +111,29 @@ namespace obd2 {
         return sid;
     }
     
-    uint16_t command::get_pid() const {
-        return pid;
+    const std::vector<uint16_t> &command::get_pids() {
+        std::lock_guard<std::mutex> pids_lock(pids_mutex);
+        return pids;
+    }
+
+    void command::set_pids(const std::vector<uint16_t> &pids) {
+        std::lock_guard<std::mutex> pids_lock(pids_mutex);
+        this->pids = pids;
+    }
+
+    void command::add_pid(uint16_t pid) {
+        std::lock_guard<std::mutex> pids_lock(pids_mutex);
+        pids.push_back(pid);
+    }
+
+    void command::remove_pid(uint16_t pid) {
+        std::lock_guard<std::mutex> pids_lock(pids_mutex);
+        pids.erase(std::find(pids.begin(), pids.end(), pid));
+    }
+    
+    bool command::contains_pid(uint16_t pid) {
+        std::lock_guard<std::mutex> pids_lock(pids_mutex);
+        return std::find(pids.begin(), pids.end(), pid) != pids.end();
     }
 
     command::status command::wait_for_response(uint32_t timeout_ms, uint32_t sample_us) {
@@ -138,11 +156,15 @@ namespace obd2 {
     }
 
     std::vector<uint8_t> command::get_can_msg() {        
-        std::vector<uint8_t> buf = { sid, static_cast<uint8_t>(pid & 0xFF) };
+        std::vector<uint8_t> buf = { sid };
 
-        // Add second byte if PID is 16 bits
-        if (pid > 0xFF) {
-            buf.push_back(static_cast<uint8_t>(pid >> 8));
+        for (uint16_t pid : pids) {
+            buf.push_back(static_cast<uint8_t>(pid));
+            
+            // Add second byte if PID is 16 bits
+            if (pid > 0xFF) {
+                buf.push_back(static_cast<uint8_t>(pid >> 8));
+            }
         }
 
         return buf;

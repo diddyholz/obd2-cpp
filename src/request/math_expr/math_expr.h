@@ -28,6 +28,8 @@ namespace obd2 {
             
             float value_raw;
 
+            int32_t variable_count = -1;
+
             void optimize_raw();
             bool parse_raw(const std::string &formula);
             bool parse_variable(const std::string &formula);
@@ -45,5 +47,6 @@ namespace obd2 {
             math_expr &operator=(math_expr &&e);
 
             float solve(const std::vector<uint8_t> &input_values);
+            uint32_t get_variable_count();
     };
 }
