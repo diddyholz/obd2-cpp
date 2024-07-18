@@ -37,15 +37,6 @@ namespace obd2 {
     }
 
     protocol::protocol(protocol &&p) {
-        if (this == &p) {
-            return;
-        }
-
-        if (listener_running) {
-            listener_running = false;
-            listener_thread.join();
-        }
-
         listener_running.store(p.listener_running);
         refresh_ms.store(p.refresh_ms);
 
@@ -128,9 +119,10 @@ namespace obd2 {
             auto start = std::chrono::steady_clock::now();
 
             process_commands();
-            std::this_thread::sleep_until(start + (delay / 2));
 
+            // Read sockets once again to process other responses
             process_sockets();
+
             call_refreshed_cb();
 
             std::this_thread::sleep_until(start + delay);
@@ -151,42 +143,77 @@ namespace obd2 {
     }
 
     void protocol::process_commands() {
-        std::lock_guard<std::mutex> commands_lock(commands_mutex);
+        std::queue<std::reference_wrapper<command>> new_command_queue;
+        
+        while (!command_queue.empty()) {
+            command &c = command_queue.front();
+            command_queue.pop();
 
-        // Go through each request and send CAN message
-        for (auto &p : command_socket_map) {
-            command *c = p.first;
+            process_command(c);
 
-            if (!c->refresh) {
-                continue;
+            auto start = std::chrono::steady_clock::now();
+            uint32_t timeout = command_process_timeout;
+
+            // If no response is expected, lower timeout
+            if (c.response_status == command::status::NO_RESPONSE) {
+                timeout = no_response_command_timeout;
             }
 
-            process_command(*c);
-        }
-    }
+            bool response_received = false;
 
-    void protocol::process_sockets() {
-        std::lock_guard<std::mutex> sockets_lock(sockets_mutex);
+            // Process incoming data from sockets until response is received
+            while (!(response_received = process_sockets(c)) && (std::chrono::steady_clock::now() - start) < std::chrono::milliseconds(timeout)) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            }
 
-        // Go through each socket and process incoming message
-        for (socket_wrapper &s : sockets) {
-            process_socket(s);
+            if (c.response_status == command::status::ERROR) {
+                return;
+            }
+
+            if (!response_received) {
+                c.response_status = command::status::NO_RESPONSE;
+                c.response_buffer = {};
+            }
+
+            new_command_queue.push(c);
         }
+
+        command_queue.swap(new_command_queue);
     }
 
     void protocol::process_command(command &c) {
         std::vector<uint8_t> msg_buf = c.get_can_msg();
+        std::lock_guard<std::mutex> commands_lock(commands_mutex);
         
         socket_wrapper &s = command_socket_map.at(&c);
         s.send_msg(msg_buf.data(), msg_buf.size());
     }
 
-    void protocol::process_socket(socket_wrapper &s) {
+    void protocol::process_sockets() {
+        command tmp;
+
+        process_sockets(tmp);
+    }
+
+    bool protocol::process_sockets(command &c) {
+        std::lock_guard<std::mutex> sockets_lock(sockets_mutex);
+
+        // Go through each socket and process incoming messages
+        for (socket_wrapper &s : sockets) {
+            if (process_socket(s, c)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    bool protocol::process_socket(socket_wrapper &s, command &c) {
         uint8_t buffer[UDS_MSG_MAX];
         size_t size = s.read_msg(buffer, sizeof(buffer));
 
         if (size == 0) {
-            return;
+            return false;
         }
 
         std::lock_guard<std::mutex> commands_lock(commands_mutex);
@@ -203,29 +230,33 @@ namespace obd2 {
         // Go through each request and check if data is for specified request
         // Only check pid if response is positive
         for (auto &p : command_socket_map) {
-            command *c = p.first;
+            command *cmd = p.first;
 
-            if (c->tx_id != s.tx_id
-                || c->rx_id != s.rx_id
-                || c->sid != (sid - UDS_RX_SID_OFFSET) 
-                || (!c->contains_pid(pid) && nrc == 0)) {
+            if (cmd->tx_id != s.tx_id
+                || cmd->rx_id != s.rx_id
+                || cmd->sid != (sid - UDS_RX_SID_OFFSET) 
+                || (!cmd->contains_pid(pid) && nrc == 0)) {
                 continue;
             }
 
             // When negative response and command status was not OK before,
             // set command to contain error
-            if (nrc != 0 && c->response_status != command::status::OK) {
+            if (nrc != 0 && cmd->response_status != command::status::OK) {
                 std::vector neg_data = { nrc };
 
-                c->update_back_buffer(neg_data.data(), neg_data.data() + neg_data.size());
-                c->response_status = command::status::ERROR;
+                cmd->update_back_buffer(neg_data.data(), neg_data.data() + neg_data.size());
+                cmd->response_status = command::status::ERROR;
             }
             else {
-                c->update_back_buffer(data, data + size - UDS_RES_PID);
+                cmd->update_back_buffer(data, data + size - UDS_RES_PID);
             }
 
-            return;
+            if (&c == cmd) {
+                return true;
+            }
         }
+
+        return false;
     }
 
     void protocol::set_refresh_ms(uint32_t ms) {
@@ -253,12 +284,31 @@ namespace obd2 {
         // Get required socket
         socket_wrapper &socket = get_socket(c.tx_id, c.rx_id);
         command_socket_map.emplace(&c, socket);
+
+        // Add command to queue
+        if (c.refresh) {
+            command_queue.push(c);
+        }
     }
 
     void protocol::remove_command(command &c) {
         std::lock_guard<std::mutex> commands_lock(commands_mutex);
         
         command_socket_map.erase(&c);
+
+        // Remove command from queue
+        std::queue<std::reference_wrapper<command>> new_command_queue;
+
+        while (!command_queue.empty()) {
+            command &tmp = command_queue.front();
+            command_queue.pop();
+
+            if (&tmp != &c) {
+                new_command_queue.push(tmp);
+            }
+        }
+
+        command_queue.swap(new_command_queue);
     }
     
     void protocol::move_command(command &old_ref, command &new_ref) {
