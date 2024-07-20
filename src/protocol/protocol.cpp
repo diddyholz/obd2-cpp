@@ -309,6 +309,7 @@ namespace obd2 {
         }
 
         command_queue.swap(new_command_queue);
+        c.parent = nullptr;
     }
     
     void protocol::move_command(command &old_ref, command &new_ref) {

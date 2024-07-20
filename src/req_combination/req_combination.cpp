@@ -5,8 +5,8 @@
 namespace obd2 {
     req_combination::req_combination() { }
 
-    req_combination::req_combination(uint32_t ecu_id, uint8_t sid, uint16_t pid, protocol &parent, bool refresh, bool allow_pid_chain)
-        : cmd(ecu_id, ecu_id + OBD2_ID_OFFSET, sid, pid, parent, refresh), allow_pid_chain(allow_pid_chain) { }
+    req_combination::req_combination(uint32_t ecu_id, uint8_t sid, uint16_t pid, protocol &protocol_instance, bool refresh, bool allow_pid_chain)
+        : cmd(ecu_id, ecu_id + OBD2_ID_OFFSET, sid, pid, protocol_instance, refresh), allow_pid_chain(allow_pid_chain) { }
 
     req_combination::req_combination(req_combination &&c) : cmd(std::move(c.cmd)), requests(std::move(c.requests)), allow_pid_chain(c.allow_pid_chain) { }
     

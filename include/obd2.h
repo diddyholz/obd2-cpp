@@ -27,6 +27,8 @@ namespace obd2 {
             std::list<req_combination> req_combinations;
             std::unordered_map<request *, std::reference_wrapper<req_combination>> req_combinations_map;
 
+            bool enable_pid_chaining = false;
+
             void add_request(request &r);
             void remove_request(request &r);
             void move_request(request &old_ref, request &new_ref);
@@ -44,7 +46,7 @@ namespace obd2 {
 
         public:
             obd2();
-            obd2(const char *if_name, uint32_t refresh_ms = 1000);
+            obd2(const char *if_name, uint32_t refresh_ms = 1000, bool enable_pid_chaining = false);
             obd2(const obd2 &i) = delete;
             obd2(obd2 &&i);
             ~obd2();
@@ -52,6 +54,7 @@ namespace obd2 {
             obd2 &operator=(const obd2 &i) = delete;
             obd2 &operator=(obd2 &&i);
 
+            void set_enable_pid_chaining(bool enable_pid_chaining);
             void set_refreshed_cb(const std::function<void(void)> &cb);
             void set_refresh_ms(uint32_t refresh_ms);
             std::vector<uint8_t> get_supported_pids(uint32_t ecu_id);

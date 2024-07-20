@@ -7,8 +7,8 @@
 namespace obd2 {
     obd2::obd2() {}
 
-    obd2::obd2(const char *if_name, uint32_t refresh_ms) 
-        : protocol_instance(if_name, refresh_ms) {}
+    obd2::obd2(const char *if_name, uint32_t refresh_ms, bool enable_pid_chaining) 
+        : protocol_instance(if_name, refresh_ms), enable_pid_chaining(enable_pid_chaining) {}
 
     obd2::obd2(obd2 &&o) {
         protocol_instance = std::move(o.protocol_instance);
@@ -138,6 +138,10 @@ namespace obd2 {
         return info;
     }
 
+    void obd2::set_enable_pid_chaining(bool enable_pid_chaining) {
+        this->enable_pid_chaining = enable_pid_chaining;
+    }
+
     void obd2::add_request(request &r) {
         // Check if request already exists
         for (auto &p : req_combinations_map) {
@@ -151,7 +155,7 @@ namespace obd2 {
             }
         }
 
-        req_combination &c = get_combination(r.ecu_id, r.service, r.pid, r.refresh && !r.formula_str.empty());
+        req_combination &c = get_combination(r.ecu_id, r.service, r.pid, r.refresh && !r.formula_str.empty() && enable_pid_chaining);
         c.add_request(r);
 
         req_combinations_map.emplace(&r, c);
@@ -161,10 +165,13 @@ namespace obd2 {
         stop_request(r);
 
         req_combination &c = req_combinations_map.at(&r);
-        
+        req_combinations_map.erase(&r);
+
         if (c.remove_request(r)) {
             req_combinations.remove(c);
         }
+
+        r.parent = nullptr;
     }
 
     void obd2::move_request(request &old_ref, request &new_ref) {
@@ -208,7 +215,7 @@ namespace obd2 {
         }
 
         return req_combinations.emplace_back(
-            ecu_id, service, pid, protocol_instance, true, allow_pid_chain
+            ecu_id, service, pid, protocol_instance, true, allow_pid_chain && (service == 0x01 || service == 0x02)
         );
     }
 
@@ -241,6 +248,10 @@ namespace obd2 {
 
         if (c.get_command().get_response_status() == command::ERROR) {
             return decoded_data;
+        }
+
+        if (data.size() == 0) {
+            return data;
         }
 
         // If the request is not part of a chain, return the raw response minus the pid at the front

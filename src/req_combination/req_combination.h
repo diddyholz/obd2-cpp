@@ -12,7 +12,7 @@ namespace obd2 {
 
         public:
             req_combination();
-            req_combination(uint32_t ecu_id, uint8_t sid, uint16_t pid, protocol &parent, bool refresh, bool allow_pid_chain = true);
+            req_combination(uint32_t ecu_id, uint8_t sid, uint16_t pid, protocol &protocol_instance, bool refresh, bool allow_pid_chain = true);
             req_combination(const req_combination &c) = delete;
             req_combination(req_combination &&c);
 
