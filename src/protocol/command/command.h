@@ -65,7 +65,7 @@ namespace obd2 {
             void remove_pid(uint16_t pid);
             bool contains_pid(uint16_t pid);
             status get_response_status();
-            status wait_for_response(uint32_t timeout_ms = 10000, uint32_t sample_us = 1000);
+            status wait_for_response(uint32_t timeout_ms = 5000, uint32_t sample_us = 1000);
             const std::vector<uint8_t> &get_buffer();
 
             friend class protocol;

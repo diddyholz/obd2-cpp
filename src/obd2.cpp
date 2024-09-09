@@ -92,8 +92,7 @@ namespace obd2 {
         for (dtc::status s : statuses) {
             command c(ecu_id, ecu_id + ECU_ID_RES_OFFSET, s, 0, protocol_instance);
 
-            // Wait 60 seconds for response
-            if (c.wait_for_response(60 * 1000) != command::OK) {
+            if (c.wait_for_response() != command::OK) {
                 continue;
             }
 
@@ -298,15 +297,9 @@ namespace obd2 {
         std::vector<dtc> dtcs;
 
         for (size_t i = 0; i < data.size(); i += 2) {
-            uint16_t code = (data[i] << 8) | data[i + 1];
+            uint16_t raw_code = data[i] | data[i + 1];
 
-            dtc error_code = { 
-                .cat = dtc::category(data[i] >> 6),
-                .code = code,
-                .stat = status
-            };
-
-            dtcs.push_back(error_code);
+            dtcs.emplace_back(raw_code, status);
         }
 
         return dtcs;

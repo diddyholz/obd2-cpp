@@ -3,6 +3,22 @@
 #include <iomanip>
 
 namespace obd2 {
+    dtc::dtc() : cat(category(0xFF)), code(0), stat(status(0xFF)) {}
+
+    dtc::dtc(uint16_t raw_code, status stat) : cat(category(raw_code >> 12)), code(raw_code & 0xFFF), stat(stat) {}
+
+    dtc::category dtc::get_category() const {
+        return cat;
+    }
+
+    uint16_t dtc::get_code() const {
+        return code;
+    }
+
+    dtc::status dtc::get_status() const {
+        return stat;
+    }
+
     std::ostream &operator<<(std::ostream &os, const dtc::status stat) {
         switch (stat) {
             case dtc::status::STORED:
@@ -36,17 +52,16 @@ namespace obd2 {
                 os << "U";
                 break;
             default:
-                os << "x";
+                os << "X";
                 break;
         }
 
-        char old_fill = os.fill('0');
-        std::streamsize old_width = os.width(4);
+        // Print nibbles of the code
+        for (int i = 0; i < 4; i++) {
+            os << std::hex << std::uppercase << ((dtc.code >> (12 - i * 4)) & 0xF);
+        }
 
-        os << dtc.code << " (" << dtc.stat << ")";
-
-        os.fill(old_fill);
-        os.width(old_width);
+        os << std::dec << std::nouppercase << " (" << dtc.stat << ")";
 
         return os;
     }
