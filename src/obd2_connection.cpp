@@ -36,7 +36,7 @@ namespace obd2 {
         std::vector<std::reference_wrapper<ecu>> ecu_list;
         ecu_list.reserve(ecus.size());
 
-        for (const auto &pair : ecus) {
+        for (auto &pair : ecus) {
             ecu_list.emplace_back(pair.second);
         }
 

@@ -19,7 +19,6 @@ namespace obd2 {
 
         if (c.parent) {	
             parent->move_command(c, *this);
-            c.parent = nullptr;
         }
 
         response_buffer = std::move(c.get_buffer());
@@ -30,9 +29,7 @@ namespace obd2 {
     }
 
     command::~command() {
-        if (parent) {
-            parent->remove_command(*this);
-        }
+        complete();
     }
 
     command &command::operator=(command &&c) {
@@ -52,7 +49,6 @@ namespace obd2 {
 
         if (c.parent) {
             parent->move_command(c, *this);
-            c.parent = nullptr;
         }
 
         std::lock_guard<std::mutex> response_bufs_lock(response_bufs_mutex);
@@ -91,11 +87,21 @@ namespace obd2 {
         return response_buffer;
     }
 
+    void command::complete() {
+        if (parent) {
+            parent->remove_command(*this);
+        }
+    }
+
     void command::resume() {
+        check_parent();
+
         refresh = true;
     }
 
     void command::stop() {
+        check_parent();
+
         refresh = false;
     }
 
@@ -151,7 +157,7 @@ namespace obd2 {
 
     void command::check_parent() {
         if (!parent) {
-            throw std::runtime_error("Command has no parent");
+            throw std::runtime_error("Command is completed or has no parent");
         }
     }
 

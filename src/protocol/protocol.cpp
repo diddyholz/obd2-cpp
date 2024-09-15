@@ -113,9 +113,9 @@ namespace obd2 {
     }
 
     void protocol::command_listener() {
-        const std::chrono::milliseconds delay = std::chrono::milliseconds(refresh_ms);
 
         while (listener_running) {
+            auto delay = std::chrono::milliseconds(refresh_ms);
             auto start = std::chrono::steady_clock::now();
 
             process_commands();
@@ -215,17 +215,19 @@ namespace obd2 {
         if (size == 0) {
             return false;
         }
-
-        std::lock_guard<std::mutex> commands_lock(commands_mutex);
+        
         uint8_t nrc = 0;
         uint8_t sid = buffer[UDS_RES_SID];
         uint8_t pid = buffer[UDS_RES_PID];
         uint8_t *data = &buffer[UDS_RES_PID];
+        std::list<std::reference_wrapper<command>> to_complete;
 
         if (sid == UDS_SID_NEGATIVE) {
             nrc = buffer[UDS_RES_NRC];
             sid = buffer[UDS_RES_REJECTED_SID];
         }
+
+        commands_mutex.lock();
 
         // Go through each request and check if data is for specified request
         // Only check pid if response is positive
@@ -251,9 +253,20 @@ namespace obd2 {
                 cmd->update_back_buffer(data, data + size - UDS_RES_PID);
             }
 
+            if (!cmd->refresh) {
+                to_complete.push_back(*cmd);
+            }
+
             if (&c == cmd) {
                 return true;
             }
+        }
+
+        commands_mutex.unlock();
+
+        // Complete commands that are not set to be refreshed
+        for (auto &cmd : to_complete) {
+            cmd.get().complete();
         }
 
         return false;
@@ -318,6 +331,8 @@ namespace obd2 {
 
         command_socket_map.erase(&old_ref);
         command_socket_map.emplace(&new_ref, socket);
+
+        old_ref.parent = nullptr;
     }
 
     void protocol::call_refreshed_cb() {
