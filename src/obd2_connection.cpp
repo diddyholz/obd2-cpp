@@ -30,10 +30,17 @@ namespace obd2 {
         return vehicle;
     }
     
-    const std::unordered_map<uint32_t, ecu> &obd2::get_ecus() {
+    std::vector<std::reference_wrapper<ecu>> obd2::get_ecus() {
         is_connection_active();
 
-        return ecus;
+        std::vector<std::reference_wrapper<ecu>> ecu_list;
+        ecu_list.reserve(ecus.size());
+
+        for (const auto &pair : ecus) {
+            ecu_list.emplace_back(pair.second);
+        }
+
+        return ecu_list;
     }
 
     void obd2::query_standard_ecus() {

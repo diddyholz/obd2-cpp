@@ -28,7 +28,7 @@ namespace obd2 {
             void set_enable_pid_chaining(bool enable_pid_chaining);
             void set_refreshed_cb(const std::function<void(void)> &cb);
             void set_refresh_ms(uint32_t refresh_ms);
-            const std::unordered_map<uint32_t, ecu> &get_ecus();
+            std::vector<std::reference_wrapper<ecu>> get_ecus();
             const vehicle_info &get_vehicle_info();
             std::vector<uint8_t> get_supported_pids(uint32_t ecu_id, uint8_t service);
             std::vector<dtc> get_dtcs(uint32_t ecu_id);
