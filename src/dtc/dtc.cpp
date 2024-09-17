@@ -1,6 +1,7 @@
 #include "dtc.h"
 
 #include <iomanip>
+#include <sstream>
 
 namespace obd2 {
     dtc::dtc() : cat(category(0xFF)), code(0), stat(status(0xFF)) {}
@@ -38,31 +39,39 @@ namespace obd2 {
     }
 
     std::ostream &operator<<(std::ostream &os, const dtc &dtc) {
-        switch (dtc.cat) {
+        std::string code = dtc.str();
+
+        os << code << " (" << dtc.stat << ")";
+
+        return os;
+    }
+
+    std::string dtc::str() const {
+        std::stringstream ss;
+
+        switch (cat) {
             case dtc::category::POWERTRAIN:
-                os << "P";
+                ss << "P";
                 break;
             case dtc::category::CHASSIS:
-                os << "C";
+                ss << "C";
                 break;
             case dtc::category::BODY:
-                os << "B";
+                ss << "B";
                 break;
             case dtc::category::NETWORK:
-                os << "U";
+                ss << "U";
                 break;
             default:
-                os << "X";
+                ss << "X";
                 break;
         }
 
         // Print nibbles of the code
         for (int i = 0; i < 4; i++) {
-            os << std::hex << std::uppercase << ((dtc.code >> (12 - i * 4)) & 0xF);
+            ss << std::hex << std::uppercase << ((code >> (12 - i * 4)) & 0xF);
         }
 
-        os << std::dec << std::nouppercase << " (" << dtc.stat << ")";
-
-        return os;
+        return ss.str();
     }
 }

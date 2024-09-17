@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <iostream>
+#include <string>
 
 namespace obd2 {
     class dtc {
@@ -26,6 +27,7 @@ namespace obd2 {
             category get_category() const;
             uint16_t get_code() const;
             status get_status() const;
+            std::string str() const;
         
         private:
             category cat;
