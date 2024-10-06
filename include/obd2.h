@@ -31,6 +31,7 @@ namespace obd2 {
             std::vector<std::reference_wrapper<ecu>> get_ecus();
             const vehicle_info &get_vehicle_info();
             std::vector<uint8_t> get_supported_pids(uint32_t ecu_id, uint8_t service);
+            bool pid_supported(uint32_t ecu_id, uint8_t service, uint16_t pid);
             std::vector<dtc> get_dtcs(uint32_t ecu_id);
             
         private:

@@ -3,7 +3,6 @@
 #include <future>
 
 namespace obd2 {
-
     bool obd2::is_connection_active() {
         // Check if main ecu is responding
         command c(ECU_ID_FIRST, ECU_ID_FIRST + ECU_ID_RES_OFFSET, 0x01, 0x00, protocol_instance);
@@ -138,6 +137,12 @@ namespace obd2 {
 
     std::vector<uint8_t> obd2::get_supported_pids(uint32_t ecu_id, uint8_t service) {
         return get_supported_pids(ecu_id, service, true);
+    }
+
+    bool obd2::pid_supported(uint32_t ecu_id, uint8_t service, uint16_t pid) {
+        std::vector<uint8_t> pids = get_supported_pids(ecu_id, service);
+
+        return std::find(pids.begin(), pids.end(), pid) != pids.end();
     }
 
     std::vector<uint8_t> obd2::get_supported_pids(uint32_t ecu_id, uint8_t service, bool cache) {
