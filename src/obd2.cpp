@@ -16,6 +16,9 @@ namespace obd2 {
         protocol_instance = std::move(o.protocol_instance);
         req_combinations = std::move(o.req_combinations);
         req_combinations_map = std::move(o.req_combinations_map);
+        ecus = std::move(o.ecus);
+        vehicle = o.vehicle;
+        enable_pid_chaining = o.enable_pid_chaining;
 
         for (auto &p : req_combinations_map) {
             p.first->parent = this;
@@ -40,6 +43,9 @@ namespace obd2 {
         protocol_instance = std::move(o.protocol_instance);
         req_combinations = std::move(o.req_combinations);
         req_combinations_map = std::move(o.req_combinations_map);
+        ecus = std::move(o.ecus);
+        vehicle = o.vehicle;
+        enable_pid_chaining = o.enable_pid_chaining;
 
         for (auto &p : req_combinations_map) {
             p.first->parent = this;

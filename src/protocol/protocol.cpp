@@ -113,14 +113,13 @@ namespace obd2 {
     }
 
     void protocol::command_listener() {
-
         while (listener_running) {
             auto delay = std::chrono::milliseconds(refresh_ms);
             auto start = std::chrono::steady_clock::now();
 
             process_commands();
 
-            // Read sockets once again to process other responses
+            // Process sockets once again, in case the command queue was empty but there are still responses to be received
             process_sockets();
 
             call_refreshed_cb();
@@ -162,7 +161,7 @@ namespace obd2 {
             bool response_received = false;
 
             // Process incoming data from sockets until response is received
-            while (!(response_received = process_sockets(c)) && (std::chrono::steady_clock::now() - start) < std::chrono::milliseconds(timeout)) {
+            while (!(response_received = process_sockets(&c)) && (std::chrono::steady_clock::now() - start) < std::chrono::milliseconds(timeout)) {
                 std::this_thread::sleep_for(std::chrono::milliseconds(1));
             }
 
@@ -189,18 +188,12 @@ namespace obd2 {
         s.send_msg(msg_buf.data(), msg_buf.size());
     }
 
-    void protocol::process_sockets() {
-        command tmp;
-
-        process_sockets(tmp);
-    }
-
-    bool protocol::process_sockets(command &c) {
+    bool protocol::process_sockets(command *command_to_check) {
         std::lock_guard<std::mutex> sockets_lock(sockets_mutex);
 
         // Go through each socket and process incoming messages
         for (socket_wrapper &s : sockets) {
-            if (process_socket(s, c)) {
+            if (process_socket(s, command_to_check)) {
                 return true;
             }
         }
@@ -208,9 +201,10 @@ namespace obd2 {
         return false;
     }
 
-    bool protocol::process_socket(socket_wrapper &s, command &c) {
+    bool protocol::process_socket(socket_wrapper &s, command *command_to_check) {
         uint8_t buffer[UDS_MSG_MAX];
         size_t size = s.read_msg(buffer, sizeof(buffer));
+        bool response_received = false;
 
         if (size == 0) {
             return false;
@@ -253,12 +247,15 @@ namespace obd2 {
                 cmd->update_back_buffer(data, data + size - UDS_RES_PID);
             }
 
+            // If command is not set to be refreshed, complete it after loop
             if (!cmd->refresh) {
                 to_complete.push_back(*cmd);
             }
 
-            if (&c == cmd) {
-                return true;
+            // If the function should check for a specific command and the commands response is recieved, 
+            // set the corresponding flag
+            if (command_to_check && cmd == command_to_check) {
+                response_received = true;
             }
         }
 
@@ -269,7 +266,7 @@ namespace obd2 {
             cmd.get().complete();
         }
 
-        return false;
+        return response_received;
     }
 
     void protocol::set_refresh_ms(uint32_t ms) {

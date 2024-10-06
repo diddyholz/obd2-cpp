@@ -147,7 +147,7 @@ namespace obd2 {
 
         auto start = std::chrono::steady_clock::now();
 
-        while (response_status == NO_RESPONSE 
+        while (response_status == WAITING 
             && (std::chrono::steady_clock::now() - start) < std::chrono::milliseconds(timeout_ms)) {
             std::this_thread::sleep_for(std::chrono::microseconds(sample_us));
         }
@@ -177,7 +177,8 @@ namespace obd2 {
     }
 
     void command::update_back_buffer(const uint8_t *start, const uint8_t *end) {
-        if (!refresh && response_status != NO_RESPONSE) {
+        // If the command is not set to be refreshed, do not update the buffer when it has already recieved a response
+        if (!refresh && (response_status == OK || response_status == ERROR)) {
             return;
         }
 

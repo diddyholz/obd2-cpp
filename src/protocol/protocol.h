@@ -24,7 +24,7 @@ namespace obd2 {
             std::mutex sockets_mutex;
             
             uint32_t command_process_timeout = 1000;
-            uint32_t no_response_command_timeout = 10;
+            uint32_t no_response_command_timeout = 1;
 
             unsigned int if_index;
             std::atomic<uint32_t> refresh_ms;
@@ -36,9 +36,8 @@ namespace obd2 {
 
             void command_listener();
             void process_commands();
-            void process_sockets();
-            bool process_sockets(command &c);
-            bool process_socket(socket_wrapper &s, command &c);
+            bool process_sockets(command *command_to_check = nullptr);
+            bool process_socket(socket_wrapper &s, command *command_to_check = nullptr);
             void process_command(command &c);
             socket_wrapper &get_socket(uint32_t tx_id, uint32_t rx_id);
             void add_command(command &c);

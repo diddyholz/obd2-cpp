@@ -120,7 +120,9 @@ namespace obd2 {
             command c(ECU_ID_FIRST, ECU_ID_FIRST + ECU_ID_RES_OFFSET, 0x09, 0x02, protocol_instance);
 
             if (c.wait_for_response() == command::OK) {
-                const std::vector<uint8_t> &res = c.get_buffer();
+                std::vector<uint8_t> res = c.get_buffer();
+                res.push_back(0);
+                
                 vehicle.vin = std::string(reinterpret_cast<const char *>(res.data() + 1));
             }
         }

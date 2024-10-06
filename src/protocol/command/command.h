@@ -14,8 +14,9 @@ namespace obd2 {
         public:
             enum status {
                 OK = 0,
-                NO_RESPONSE = 1,
-                ERROR = 2
+                WAITING,
+                NO_RESPONSE,
+                ERROR
             };
         
         public:
@@ -61,7 +62,7 @@ namespace obd2 {
             std::mutex response_bufs_mutex;
 
             std::atomic<bool> response_updated = false;
-            std::atomic<status> response_status = NO_RESPONSE;
+            std::atomic<status> response_status = WAITING;
 
             uint32_t tx_id;
             uint32_t rx_id;
