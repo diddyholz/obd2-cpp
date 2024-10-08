@@ -67,7 +67,14 @@ namespace obd2 {
 
     protocol::~protocol() {
         listener_running = false;
-        listener_thread.join();
+
+        // Try to join listener thread if it is running
+        try {
+            listener_thread.join();
+        }
+        catch(const std::system_error &e) {
+            // Ignore error if thread is not joinable
+        }
 
         for (auto &p : command_socket_map) {
             p.first->parent = nullptr;
