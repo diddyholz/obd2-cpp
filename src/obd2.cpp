@@ -8,9 +8,7 @@ namespace obd2 {
     obd2::obd2() {}
 
     obd2::obd2(const char *if_name, uint32_t refresh_ms, bool enable_pid_chaining) 
-        : protocol_instance(if_name, refresh_ms), enable_pid_chaining(enable_pid_chaining) {
-        is_connection_active();
-    }
+        : protocol_instance(if_name, refresh_ms), enable_pid_chaining(enable_pid_chaining) { }
 
     obd2::obd2(obd2 &&o) {
         protocol_instance = std::move(o.protocol_instance);
