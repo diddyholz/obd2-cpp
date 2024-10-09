@@ -99,8 +99,15 @@ namespace obd2 {
         }
 
         result = ecu(ecu_id, ecu_name);
-        result.add_supported_pids(0x01, get_supported_pids(ecu_id, 0x01, false));
-        result.add_supported_pids(0x02, get_supported_pids(ecu_id, 0x02, false));
+
+        if (query_service != 0x01) {
+            result.add_supported_pids(0x01, get_supported_pids(ecu_id, 0x01, false));
+        }
+
+        if (query_service != 0x02) {
+            result.add_supported_pids(0x02, get_supported_pids(ecu_id, 0x02, false));
+        }
+
         result.add_supported_pids(0x09, pids);
 
         if (query_service != 0x09) {
@@ -147,6 +154,11 @@ namespace obd2 {
 
     std::vector<uint8_t> obd2::get_supported_pids(uint32_t ecu_id, uint8_t service, bool cache) {
         std::vector<uint8_t> pids;
+
+        // If no standard service, return empty pids
+        if (service != 0x01 && service != 0x02 && service != 0x09) {
+            return pids;
+        }
 
         // Check if requested pids are already cached
         if (cache) {
