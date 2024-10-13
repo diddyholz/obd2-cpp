@@ -225,6 +225,7 @@ namespace obd2 {
         bool is_dtc = false;
 
         // Check if response is negative or dtc response
+        // TODO: Wait method is not skipping for errors
         if (sid == UDS_SID_NEGATIVE) {
             nrc = buffer[UDS_RES_NRC];
             sid = buffer[UDS_RES_REJECTED_SID];
