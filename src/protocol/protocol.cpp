@@ -217,15 +217,24 @@ namespace obd2 {
             return false;
         }
         
-        uint8_t nrc = 0;
+        uint8_t nrc = 0; // Negative response code
         uint8_t sid = buffer[UDS_RES_SID];
         uint8_t pid = buffer[UDS_RES_PID];
         uint8_t *data = &buffer[UDS_RES_PID];
         std::list<std::reference_wrapper<command>> to_complete;
+        bool is_dtc = false;
 
+        // Check if response is negative or dtc response
         if (sid == UDS_SID_NEGATIVE) {
             nrc = buffer[UDS_RES_NRC];
             sid = buffer[UDS_RES_REJECTED_SID];
+        }
+        else if (sid == 0x03 + UDS_RX_SID_OFFSET 
+            || sid == 0x07 + UDS_RX_SID_OFFSET
+            || sid == 0x0A + UDS_RX_SID_OFFSET) {
+            // TODO: Full UDS implementation
+            // => This should not be checked in this layer
+            is_dtc = true;
         }
 
         commands_mutex.lock();
@@ -238,7 +247,7 @@ namespace obd2 {
             if (cmd->tx_id != s.tx_id
                 || cmd->rx_id != s.rx_id
                 || cmd->sid != (sid - UDS_RX_SID_OFFSET) 
-                || (!cmd->contains_pid(pid) && nrc == 0)) {
+                || (!cmd->contains_pid(pid) && nrc == 0 && !is_dtc)) {
                 continue;
             }
 

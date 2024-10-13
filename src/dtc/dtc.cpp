@@ -6,7 +6,10 @@
 namespace obd2 {
     dtc::dtc() : cat(category(0xFF)), code(0), stat(status(0xFF)) {}
 
-    dtc::dtc(uint16_t raw_code, status stat) : cat(category(raw_code >> 12)), code(raw_code & 0xFFF), stat(stat) {}
+    dtc::dtc(uint16_t raw_code, status stat) : stat(stat) {
+        code = ((raw_code & 0x003F) << 8) | ((raw_code & 0xFF00) >> 8);
+        cat = category((raw_code & 0x30) >> 4);
+    }
 
     dtc::category dtc::get_category() const {
         return cat;

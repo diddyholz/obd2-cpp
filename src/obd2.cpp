@@ -79,8 +79,7 @@ namespace obd2 {
                 continue;
             }
 
-            std::vector<uint8_t> data(c.get_buffer().begin() + 1, c.get_buffer().end());
-            std::vector<dtc> response_dtcs = decode_dtcs(data, s);
+            std::vector<dtc> response_dtcs = decode_dtcs(c.get_buffer(), s);
             dtcs.insert(dtcs.end(), response_dtcs.begin(), response_dtcs.end());
         }
 
@@ -90,8 +89,13 @@ namespace obd2 {
     std::vector<dtc> obd2::decode_dtcs(const std::vector<uint8_t> &data, dtc::status status) {
         std::vector<dtc> dtcs;
 
-        for (size_t i = 0; i < data.size(); i += 2) {
-            uint16_t raw_code = data[i] | data[i + 1];
+        for (size_t i = 0; (i + 1) < data.size(); i += 2) {
+            uint16_t raw_code = data[i] | data[i + 1] << 8;
+
+            // Ignore zero bytes
+            if (raw_code == 0) {
+                continue;
+            }
 
             dtcs.emplace_back(raw_code, status);
         }
