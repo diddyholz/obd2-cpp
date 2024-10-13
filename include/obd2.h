@@ -33,6 +33,7 @@ namespace obd2 {
             std::vector<uint8_t> get_supported_pids(uint32_t ecu_id, uint8_t service);
             bool pid_supported(uint32_t ecu_id, uint8_t service, uint16_t pid);
             std::vector<dtc> get_dtcs(uint32_t ecu_id);
+            void clear_dtcs(uint32_t ecu_id);
             
         private:
             // TODO: Enums for service and pids

@@ -86,6 +86,10 @@ namespace obd2 {
         return dtcs;
     }
 
+    void obd2::clear_dtcs(uint32_t ecu_id) {
+        command c(ecu_id, ecu_id + ECU_ID_RES_OFFSET, 0x04, 0, protocol_instance);
+    }
+
     std::vector<dtc> obd2::decode_dtcs(const std::vector<uint8_t> &data, dtc::status status) {
         std::vector<dtc> dtcs;
 
