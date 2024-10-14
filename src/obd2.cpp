@@ -21,6 +21,10 @@ namespace obd2 {
         for (auto &p : req_combinations_map) {
             p.first->parent = this;
         }
+
+        o.connection_mutex.lock();
+        last_connection_active = o.last_connection_active.load();
+        o.connection_mutex.unlock();
     }
 
     obd2::~obd2() {
@@ -48,6 +52,10 @@ namespace obd2 {
         for (auto &p : req_combinations_map) {
             p.first->parent = this;
         }
+
+        o.connection_mutex.lock();
+        last_connection_active = o.last_connection_active.load();
+        o.connection_mutex.unlock();
 
         return *this;
     }

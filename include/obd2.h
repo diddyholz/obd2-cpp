@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <mutex>
 #include <unordered_map>
 #include <vector>
 
@@ -52,6 +53,10 @@ namespace obd2 {
 
             std::unordered_map<uint32_t, ecu> ecus; // ECU ID => ECU
             vehicle_info vehicle;
+
+            std::mutex connection_mutex;
+            std::atomic<bool> last_connection_active = false;
+            std::atomic<uint8_t> connection_request_id = 0; // Used to identify connection requests results
 
             void query_standard_ecus();
             ecu query_ecu(uint32_t ecu_id, uint8_t query_service = 0x09);

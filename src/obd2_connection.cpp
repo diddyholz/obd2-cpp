@@ -4,6 +4,18 @@
 
 namespace obd2 {
     bool obd2::is_connection_active() {
+        // Try to lock mutex, if not possible, another thread already tries to get the connection status
+        if (!connection_mutex.try_lock()) {
+            uint8_t request_id = connection_request_id;
+
+            // Wait until the other thread has finished
+            while (connection_request_id == request_id) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            }
+
+            return last_connection_active.load();
+        }
+
         // Check if main ecu is responding
         command c(ECU_ID_FIRST, ECU_ID_FIRST + ECU_ID_RES_OFFSET, 0x01, 0x00, protocol_instance);
 
@@ -11,6 +23,11 @@ namespace obd2 {
         if (c.wait_for_response() != command::OK) {
             ecus.clear();
             vehicle = vehicle_info();
+
+            last_connection_active = false;
+            connection_request_id++;
+            connection_mutex.unlock();
+            
             return false;
         }
 
@@ -19,6 +36,10 @@ namespace obd2 {
             query_standard_ecus();
             query_vehicle_info();
         }
+
+        last_connection_active = true;
+        connection_request_id++;
+        connection_mutex.unlock();
 
         return true;
     }
