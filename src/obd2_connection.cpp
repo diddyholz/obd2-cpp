@@ -213,8 +213,9 @@ namespace obd2 {
         if (c.wait_for_response() != command::OK) {
             return std::vector<uint8_t>();
         }
-        
-        std::vector<uint8_t> data(c.get_buffer().begin() + 1, c.get_buffer().end());
+
+        const std::vector<uint8_t> &response = c.get_buffer();
+        std::vector<uint8_t> data(response.begin() + 1, response.end());
         return decode_pids_supported(data, pid_offset);
     }
 

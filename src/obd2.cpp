@@ -75,11 +75,13 @@ namespace obd2 {
                 continue;
             }
 
-            if (c.get_buffer().size() < 2) {
+            const std::vector<uint8_t> &response = c.get_buffer();
+
+            if (response.size() < 2) {
                 continue;
             }
 
-            std::vector<dtc> response_dtcs = decode_dtcs(c.get_buffer(), s);
+            std::vector<dtc> response_dtcs = decode_dtcs(response, s);
             dtcs.insert(dtcs.end(), response_dtcs.begin(), response_dtcs.end());
         }
 
