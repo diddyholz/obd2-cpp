@@ -5,6 +5,9 @@
 namespace obd2 {
     command::command() : parent(nullptr) {}
 
+    command::command(uint32_t tx_id, uint32_t rx_id, uint8_t sid, protocol &parent, bool refresh) 
+        : command(tx_id, rx_id, sid, std::vector<uint16_t>(), parent, refresh) {}
+
     command::command(uint32_t tx_id, uint32_t rx_id, uint8_t sid, uint16_t pid, protocol &parent, bool refresh) 
         : command(tx_id, rx_id, sid, std::vector<uint16_t>({ pid }), parent, refresh) {}
 
@@ -164,6 +167,8 @@ namespace obd2 {
     std::vector<uint8_t> command::get_can_msg() {        
         std::vector<uint8_t> buf = { sid };
 
+        std::lock_guard<std::mutex> pids_lock(pids_mutex);
+        
         for (uint16_t pid : pids) {
             buf.push_back(static_cast<uint8_t>(pid));
             

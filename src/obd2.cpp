@@ -76,8 +76,9 @@ namespace obd2 {
         std::vector<dtc> dtcs;
         dtc::status statuses[] = { dtc::STORED, dtc::PENDING, dtc::PERMANENT };
 
+        // TODO: Multiple requests at the same time
         for (dtc::status s : statuses) {
-            command c(ecu_id, ecu_id + ECU_ID_RES_OFFSET, s, 0, protocol_instance);
+            command c(ecu_id, ecu_id + ECU_ID_RES_OFFSET, s, protocol_instance);
 
             if (c.wait_for_response() != command::OK) {
                 continue;
@@ -97,7 +98,7 @@ namespace obd2 {
     }
 
     void obd2::clear_dtcs(uint32_t ecu_id) {
-        command c(ecu_id, ecu_id + ECU_ID_RES_OFFSET, 0x04, 0, protocol_instance);
+        command c(ecu_id, ecu_id + ECU_ID_RES_OFFSET, 0x04, protocol_instance);
     }
 
     std::vector<dtc> obd2::decode_dtcs(const std::vector<uint8_t> &data, dtc::status status) {

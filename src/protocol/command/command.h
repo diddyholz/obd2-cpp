@@ -21,6 +21,7 @@ namespace obd2 {
         
         public:
             command();
+            command(uint32_t tx_id, uint32_t rx_id, uint8_t sid, protocol &parent, bool refresh = false);
             command(uint32_t tx_id, uint32_t rx_id, uint8_t sid, uint16_t pid, protocol &parent, bool refresh = false);
             command(uint32_t tx_id, uint32_t rx_id, uint8_t sid, const std::vector<uint16_t> &pids, protocol &parent, bool refresh = false);
             command(const command &c) = delete;
