@@ -26,6 +26,9 @@ namespace obd2 {
             uint32_t command_process_timeout = 1000;
             uint32_t no_response_command_timeout = 1;
 
+            std::atomic<bool> recieved_response = false;
+            std::atomic<bool> next_recieved_response = false;
+
             unsigned int if_index;
             std::atomic<uint32_t> refresh_ms;
             std::thread listener_thread;
@@ -57,6 +60,7 @@ namespace obd2 {
 
             void set_refresh_ms(uint32_t ms);
             void set_refreshed_cb(const std::function<void(void)> &cb);
+            bool recieved_any_response();
 
             friend class command;
     };

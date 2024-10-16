@@ -124,10 +124,16 @@ namespace obd2 {
             auto delay = std::chrono::milliseconds(refresh_ms);
             auto start = std::chrono::steady_clock::now();
 
+            // Reset flag for this iteration
+            next_recieved_response = false;
+
             process_commands();
 
             // Process sockets once again, in case the command queue was empty but there are still responses to be received
             process_sockets();
+
+            // Update flag after processing sockets
+            recieved_response = next_recieved_response.load();
 
             call_refreshed_cb();
 
@@ -211,11 +217,13 @@ namespace obd2 {
     bool protocol::process_socket(socket_wrapper &s, command *command_to_check) {
         uint8_t buffer[UDS_MSG_MAX];
         size_t size = s.read_msg(buffer, sizeof(buffer));
-        bool response_received = false;
+        bool cmd_response = false;
 
         if (size == 0) {
             return false;
         }
+
+        next_recieved_response = true;
         
         uint8_t nrc = 0; // Negative response code
         uint8_t sid = buffer[UDS_RES_SID];
@@ -272,7 +280,7 @@ namespace obd2 {
             // If the function should check for a specific command and the commands response is recieved, 
             // set the corresponding flag
             if (command_to_check && cmd == command_to_check) {
-                response_received = true;
+                cmd_response = true;
             }
         }
 
@@ -283,7 +291,7 @@ namespace obd2 {
             cmd.get().complete();
         }
 
-        return response_received;
+        return cmd_response;
     }
 
     void protocol::set_refresh_ms(uint32_t ms) {
@@ -293,6 +301,10 @@ namespace obd2 {
     void protocol::set_refreshed_cb(const std::function<void(void)> &cb) {
         std::lock_guard<std::mutex> refreshed_cb_lock(refreshed_cb_mutex);
         refreshed_cb = cb;
+    }
+
+    bool protocol::recieved_any_response() {
+        return recieved_response.load();
     }
 
     void protocol::add_command(command &c) {

@@ -15,33 +15,26 @@ namespace obd2 {
 
             return last_connection_active.load();
         }
+        
+        bool connection_active = query_connection_status();
 
-        // Check if main ecu is responding
-        command c(ECU_ID_FIRST, ECU_ID_FIRST + ECU_ID_RES_OFFSET, 0x01, 0x00, protocol_instance);
-
-        // If not, return false and clear connection data
-        if (c.wait_for_response() != command::OK) {
+        if (!connection_active) {
+            // Delete all ecus and vehicle info
             ecus.clear();
             vehicle = vehicle_info();
-
-            last_connection_active = false;
-            connection_request_id++;
-            connection_mutex.unlock();
-            
-            return false;
         }
-
-        // If yes, query standard ECUs and vehicle info if not already done
-        if (ecus.size() == 0) {
+        else if (connection_active && ecus.size() == 0) {
+            // Connection was just established, query ecus and vehicle info
             query_standard_ecus();
             query_vehicle_info();
         }
 
-        last_connection_active = true;
+        // Notify possible waiting threads that connection status has been updated
+        last_connection_active = connection_active;
         connection_request_id++;
         connection_mutex.unlock();
 
-        return true;
+        return connection_active;
     }
 
     const vehicle_info &obd2::get_vehicle_info() {
@@ -171,6 +164,17 @@ namespace obd2 {
         std::vector<uint8_t> pids = get_supported_pids(ecu_id, service);
 
         return std::find(pids.begin(), pids.end(), pid) != pids.end();
+    }
+
+    bool obd2::query_connection_status() {
+        // If the command listener recieved any response, a connection definitely is active
+        if (protocol_instance.recieved_any_response()) {
+            return true;    
+        }
+        
+        // Check if main ecu is responding
+        command c(ECU_ID_FIRST, ECU_ID_FIRST + ECU_ID_RES_OFFSET, 0x01, 0x00, protocol_instance);
+        return c.wait_for_response() == command::OK;
     }
 
     std::vector<uint8_t> obd2::get_supported_pids(uint32_t ecu_id, uint8_t service, bool cache) {

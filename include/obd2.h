@@ -58,6 +58,7 @@ namespace obd2 {
             std::atomic<bool> last_connection_active = false;
             std::atomic<uint8_t> connection_request_id = 0; // Used to identify connection requests results
 
+            bool query_connection_status();
             void query_standard_ecus();
             ecu query_ecu(uint32_t ecu_id, uint8_t query_service = 0x09);
             void query_vehicle_info();
