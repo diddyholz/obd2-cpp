@@ -8,7 +8,7 @@ namespace obd2 {
 
     dtc::dtc(uint16_t raw_code, status stat) : stat(stat) {
         code = ((raw_code & 0x003F) << 8) | ((raw_code & 0xFF00) >> 8);
-        cat = category((raw_code & 0x30) >> 4);
+        cat = category((raw_code & 0xC0) >> 6);
     }
 
     dtc::category dtc::get_category() const {
