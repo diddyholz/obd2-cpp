@@ -195,7 +195,6 @@ namespace obd2 {
 
     void protocol::process_command(command &c) {
         std::vector<uint8_t> msg_buf = c.get_can_msg();
-        std::lock_guard<std::mutex> commands_lock(commands_mutex);
         
         socket_wrapper &s = command_socket_map.at(&c);
         s.send_msg(msg_buf.data(), msg_buf.size());

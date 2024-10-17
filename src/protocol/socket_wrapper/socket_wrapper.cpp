@@ -102,7 +102,7 @@ namespace obd2 {
     }
  
     void socket_wrapper::send_msg(void *data, size_t size) {
-        while(write(fd, data, size) < 0) {
+        while (write(fd, data, size) < 0) {
             if (errno != EAGAIN) {
                 return;
             }
