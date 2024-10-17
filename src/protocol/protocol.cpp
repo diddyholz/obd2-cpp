@@ -36,15 +36,87 @@ namespace obd2 {
         listener_thread = std::thread(&protocol::command_listener, this);
     }
 
-    protocol::~protocol() {
+    protocol::protocol(protocol &&p) {
+        listener_running.store(p.listener_running);
+        refresh_ms.store(p.refresh_ms);
+
+        if_index = p.if_index;
+
         if (listener_running) {
-            listener_running = false;
+            listener_thread = std::thread(&protocol::command_listener, this);
+        }
+
+        refreshed_cb = p.refreshed_cb;
+
+        std::lock_guard<std::mutex> commands_lock(commands_mutex);
+        std::lock_guard<std::mutex> sockets_lock(sockets_mutex);
+        std::lock_guard<std::mutex> refreshed_cb_lock(refreshed_cb_mutex);
+
+        for (auto &p : command_socket_map) {
+            p.first->parent = nullptr;
+        }
+
+        command_socket_map = std::move(p.command_socket_map);
+        sockets = std::move(p.sockets);
+        refreshed_cb = std::move(p.refreshed_cb);
+
+        for (auto &p : command_socket_map) {
+            p.first->parent = this;
+        }
+    }
+
+    protocol::~protocol() {
+        listener_running = false;
+
+        // Try to join listener thread if it is running
+        try {
             listener_thread.join();
+        }
+        catch(const std::system_error &e) {
+            // Ignore error if thread is not joinable
         }
 
         for (auto &p : command_socket_map) {
             p.first->parent = nullptr;
         }
+    }
+
+    protocol &protocol::operator=(protocol &&p) {
+        if (this == &p) {
+            return *this;
+        }
+
+        if (listener_running) {
+            listener_running = false;
+            listener_thread.join();
+        }
+
+        refresh_ms.store(p.refresh_ms);
+        listener_running.store(p.listener_running);
+        
+        if_index = p.if_index;
+
+        if (listener_running) {
+            listener_thread = std::thread(&protocol::command_listener, this);
+        }
+
+        std::lock_guard<std::mutex> commands_lock(commands_mutex);
+        std::lock_guard<std::mutex> sockets_lock(sockets_mutex);
+        std::lock_guard<std::mutex> refreshed_cb_lock(refreshed_cb_mutex);
+
+        for (auto &p : command_socket_map) {
+            p.first->parent = nullptr;
+        }
+
+        command_socket_map = std::move(p.command_socket_map);
+        sockets = std::move(p.sockets);
+        refreshed_cb = std::move(p.refreshed_cb);
+
+        for (auto &p : command_socket_map) {
+            p.first->parent = this;
+        }
+
+        return *this;
     }
 
     void protocol::command_listener() {
