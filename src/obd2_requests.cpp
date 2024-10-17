@@ -105,7 +105,7 @@ namespace obd2 {
         const std::vector<uint8_t> &data = c.get_command().get_buffer();
         std::vector<uint8_t> decoded_data;
 
-        if (c.get_command().get_response_status() == command::ERROR) {
+        if (c.get_command().get_response_status() == cmd_status::ERROR) {
             return decoded_data;
         }
 

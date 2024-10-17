@@ -6,12 +6,13 @@
 #include <unordered_map>
 #include <vector>
 
-#include "../src/req_combination/req_combination.h"
-#include "../src/protocol/protocol.h"
-#include "../src/request/request.h"
 #include "../src/dtc/dtc.h"
-#include "../src/vehicle_info/vehicle_info.h"
 #include "../src/ecu/ecu.h"
+#include "../src/protocol/command/command.h"
+#include "../src/protocol/protocol.h"
+#include "../src/req_combination/req_combination.h"
+#include "../src/request/request.h"
+#include "../src/vehicle_info/vehicle_info.h"
 
 namespace obd2 {
     class obd2 {

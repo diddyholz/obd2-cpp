@@ -9,9 +9,11 @@
 #include <stdexcept>
 #include <sys/ioctl.h>
 
+#include "command/command_backend/command_backend.h"
+
 #define UDS_MSG_MAX             1024
 
-#define UDS_RX_SID_OFFSET        0x40
+#define UDS_RX_SID_OFFSET       0x40
 #define UDS_RES_SID             0x00
 #define UDS_RES_PID             0x01
 #define UDS_RES_DATA            0x02
@@ -155,10 +157,10 @@ namespace obd2 {
     }
 
     void protocol::process_commands() {
-        std::queue<std::reference_wrapper<command>> new_command_queue;
+        std::queue<std::reference_wrapper<command_backend>> new_command_queue;
         
         while (!command_queue.empty()) {
-            command &c = command_queue.front();
+            command_backend &c = command_queue.front();
             command_queue.pop();
 
             process_command(c);
@@ -167,7 +169,7 @@ namespace obd2 {
             uint32_t timeout = command_process_timeout;
 
             // If no response is expected, lower timeout
-            if (c.response_status == command::status::NO_RESPONSE) {
+            if (c.response_status == cmd_status::NO_RESPONSE) {
                 timeout = no_response_command_timeout;
             }
 
@@ -178,12 +180,12 @@ namespace obd2 {
                 std::this_thread::sleep_for(std::chrono::milliseconds(1));
             }
 
-            if (c.response_status == command::status::ERROR) {
+            if (c.response_status == cmd_status::ERROR) {
                 return;
             }
 
             if (!response_received) {
-                c.response_status = command::status::NO_RESPONSE;
+                c.response_status = cmd_status::NO_RESPONSE;
                 c.response_buffer = {};
             }
 
@@ -193,14 +195,14 @@ namespace obd2 {
         command_queue.swap(new_command_queue);
     }
 
-    void protocol::process_command(command &c) {
+    void protocol::process_command(command_backend &c) {
         std::vector<uint8_t> msg_buf = c.get_can_msg();
         
         socket_wrapper &s = command_socket_map.at(&c);
         s.send_msg(msg_buf.data(), msg_buf.size());
     }
 
-    bool protocol::process_sockets(command *command_to_check) {
+    bool protocol::process_sockets(command_backend *command_to_check) {
         std::lock_guard<std::mutex> sockets_lock(sockets_mutex);
 
         // Go through each socket and process incoming messages
@@ -213,7 +215,7 @@ namespace obd2 {
         return false;
     }
 
-    bool protocol::process_socket(socket_wrapper &s, command *command_to_check) {
+    bool protocol::process_socket(socket_wrapper &s, command_backend *command_to_check) {
         uint8_t buffer[UDS_MSG_MAX];
         size_t size = s.read_msg(buffer, sizeof(buffer));
         bool cmd_response = false;
@@ -228,7 +230,7 @@ namespace obd2 {
         uint8_t sid = buffer[UDS_RES_SID];
         uint8_t pid = buffer[UDS_RES_PID];
         uint8_t *data = &buffer[UDS_RES_PID];
-        std::list<std::reference_wrapper<command>> to_complete;
+        std::list<std::reference_wrapper<command_backend>> to_complete;
         bool is_dtc = false;
 
         // Check if response is negative or dtc response
@@ -249,7 +251,7 @@ namespace obd2 {
         // Go through each request and check if data is for specified request
         // Only check pid if response is positive
         for (auto &p : command_socket_map) {
-            command *cmd = p.first;
+            command_backend *cmd = p.first;
 
             if (cmd->tx_id != s.tx_id
                 || cmd->rx_id != s.rx_id
@@ -260,11 +262,11 @@ namespace obd2 {
 
             // When negative response and command status was not OK before,
             // set command to contain error
-            if (nrc != 0 && cmd->response_status != command::status::OK) {
+            if (nrc != 0 && cmd->response_status != cmd_status::OK) {
                 std::vector neg_data = { nrc };
 
                 cmd->update_back_buffer(neg_data.data(), neg_data.data() + neg_data.size());
-                cmd->response_status = command::status::ERROR;
+                cmd->response_status = cmd_status::ERROR;
             }
             else {
                 cmd->update_back_buffer(data, data + size - UDS_RES_PID);
@@ -309,7 +311,7 @@ namespace obd2 {
         return recieved_response.load();
     }
 
-    void protocol::add_command(command &c) {
+    void protocol::add_command(command_backend &c) {
         std::lock_guard<std::mutex> commands_lock(commands_mutex);
 
         // Check if identical command already exists
@@ -332,16 +334,16 @@ namespace obd2 {
         }
     }
 
-    void protocol::remove_command(command &c) {
+    void protocol::remove_command(command_backend &c) {
         std::lock_guard<std::mutex> commands_lock(commands_mutex);
         
         command_socket_map.erase(&c);
 
         // Remove command from queue
-        std::queue<std::reference_wrapper<command>> new_command_queue;
+        std::queue<std::reference_wrapper<command_backend>> new_command_queue;
 
         while (!command_queue.empty()) {
-            command &tmp = command_queue.front();
+            command_backend &tmp = command_queue.front();
             command_queue.pop();
 
             if (&tmp != &c) {
@@ -353,7 +355,7 @@ namespace obd2 {
         c.parent = nullptr;
     }
     
-    void protocol::move_command(command &old_ref, command &new_ref) {
+    void protocol::move_command(command_backend &old_ref, command_backend &new_ref) {
         std::lock_guard<std::mutex> commands_lock(commands_mutex);
         socket_wrapper &socket = command_socket_map.at(&old_ref);
 

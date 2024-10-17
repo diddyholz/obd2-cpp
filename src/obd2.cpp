@@ -84,7 +84,7 @@ namespace obd2 {
         for (dtc::status s : statuses) {
             command c(ecu_id, ecu_id + ECU_ID_RES_OFFSET, s, protocol_instance);
 
-            if (c.wait_for_response() != command::OK) {
+            if (c.wait_for_response() != cmd_status::OK) {
                 continue;
             }
 

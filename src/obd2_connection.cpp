@@ -106,7 +106,7 @@ namespace obd2 {
         if (std::find(pids.begin(), pids.end(), 0x0A) != pids.end()) {
             command c(ecu_id, ecu_id + ECU_ID_RES_OFFSET, 0x09, 0x0A, protocol_instance);
 
-            if (c.wait_for_response() == command::OK) {
+            if (c.wait_for_response() == cmd_status::OK) {
                 const std::vector<uint8_t> &res = c.get_buffer();
                 ecu_name.assign(reinterpret_cast<const char *>(res.data() + 1));
             }
@@ -139,7 +139,7 @@ namespace obd2 {
         if (std::find(pids.begin(), pids.end(), 0x02) != pids.end()) {
             command c(ECU_ID_FIRST, ECU_ID_FIRST + ECU_ID_RES_OFFSET, 0x09, 0x02, protocol_instance);
 
-            if (c.wait_for_response() == command::OK) {
+            if (c.wait_for_response() == cmd_status::OK) {
                 std::vector<uint8_t> res = c.get_buffer();
                 res.push_back(0);
                 
@@ -174,7 +174,7 @@ namespace obd2 {
         
         // Check if main ecu is responding
         command c(ECU_ID_FIRST, ECU_ID_FIRST + ECU_ID_RES_OFFSET, 0x01, 0x00, protocol_instance);
-        return c.wait_for_response() == command::OK;
+        return c.wait_for_response() == cmd_status::OK;
     }
 
     std::vector<uint8_t> obd2::get_supported_pids(uint32_t ecu_id, uint8_t service, bool cache) {
@@ -235,7 +235,7 @@ namespace obd2 {
     std::vector<uint8_t> obd2::get_supported_pids(uint32_t ecu_id, uint8_t service, uint8_t pid_offset) {
         command c(ecu_id, ecu_id + ECU_ID_RES_OFFSET, service, pid_offset, protocol_instance);
 
-        if (c.wait_for_response() != command::OK) {
+        if (c.wait_for_response() != cmd_status::OK) {
             return std::vector<uint8_t>();
         }
 

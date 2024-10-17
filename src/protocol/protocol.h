@@ -14,10 +14,12 @@
 #include "socket_wrapper/socket_wrapper.h"
 
 namespace obd2 {
+    class command_backend;
+
     class protocol {
         private:
-            std::unordered_map<command *, std::reference_wrapper<socket_wrapper>> command_socket_map;
-            std::queue<std::reference_wrapper<command>> command_queue;
+            std::unordered_map<command_backend *, std::reference_wrapper<socket_wrapper>> command_socket_map;
+            std::queue<std::reference_wrapper<command_backend>> command_queue;
             std::mutex commands_mutex;
 
             std::vector<socket_wrapper> sockets;
@@ -39,13 +41,13 @@ namespace obd2 {
 
             void command_listener();
             void process_commands();
-            bool process_sockets(command *command_to_check = nullptr);
-            bool process_socket(socket_wrapper &s, command *command_to_check = nullptr);
-            void process_command(command &c);
+            bool process_sockets(command_backend *command_to_check = nullptr);
+            bool process_socket(socket_wrapper &s, command_backend *command_to_check = nullptr);
+            void process_command(command_backend &c);
             socket_wrapper &get_socket(uint32_t tx_id, uint32_t rx_id);
-            void add_command(command &c);
-            void remove_command(command &c);
-            void move_command(command &old_ref, command &new_ref);
+            void add_command(command_backend &c);
+            void remove_command(command_backend &c);
+            void move_command(command_backend &old_ref, command_backend &new_ref);
             void call_refreshed_cb();
 
         public:
@@ -64,6 +66,6 @@ namespace obd2 {
 
             uint32_t get_refresh_ms() const;
 
-            friend class command;
+            friend class command_backend;
     };
 }
