@@ -58,7 +58,9 @@ namespace obd2 {
     }
 
     socket_wrapper::~socket_wrapper() {
-        close(fd);
+        if (fd >= 0) {
+            close(fd);
+        }
     }
 
     socket_wrapper::socket_wrapper(socket_wrapper &&s) 
