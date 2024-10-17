@@ -15,6 +15,22 @@
 
 namespace obd2 {
     class protocol {
+        public:
+            protocol();
+            protocol(const char *if_name, uint32_t refresh_ms = 1000);
+            protocol(const protocol &p) = delete;
+            protocol(protocol &&p) = delete;
+            ~protocol();
+            
+            protocol &operator=(const protocol &p) = delete;
+            protocol &operator=(protocol &&p) = delete;
+
+            void set_refresh_ms(uint32_t ms);
+            void set_refreshed_cb(const std::function<void(void)> &cb);
+            bool recieved_any_response();
+
+            uint32_t get_refresh_ms() const;
+
         private:
             std::unordered_map<command *, std::reference_wrapper<socket_wrapper>> command_socket_map;
             std::queue<std::reference_wrapper<command>> command_queue;
@@ -47,22 +63,6 @@ namespace obd2 {
             void remove_command(command &c);
             void move_command(command &old_ref, command &new_ref);
             void call_refreshed_cb();
-
-        public:
-            protocol();
-            protocol(const char *if_name, uint32_t refresh_ms = 1000);
-            protocol(const protocol &p) = delete;
-            protocol(protocol &&p);
-            ~protocol();
-            
-            protocol &operator=(const protocol &p) = delete;
-            protocol &operator=(protocol &&p);
-
-            void set_refresh_ms(uint32_t ms);
-            void set_refreshed_cb(const std::function<void(void)> &cb);
-            bool recieved_any_response();
-
-            uint32_t get_refresh_ms() const;
 
             friend class command;
     };
