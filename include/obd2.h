@@ -26,16 +26,20 @@ namespace obd2 {
             obd2 &operator=(obd2 &&i);
 
             bool is_connection_active();
-            void set_enable_pid_chaining(bool enable_pid_chaining);
-            void set_refreshed_cb(const std::function<void(void)> &cb);
-            void set_refresh_ms(uint32_t refresh_ms);
-            std::vector<std::reference_wrapper<ecu>> get_ecus();
-            const vehicle_info &get_vehicle_info();
+            
             std::vector<uint8_t> get_supported_pids(uint32_t ecu_id, uint8_t service);
             bool pid_supported(uint32_t ecu_id, uint8_t service, uint16_t pid);
             std::vector<dtc> get_dtcs(uint32_t ecu_id);
             void clear_dtcs(uint32_t ecu_id);
+            const vehicle_info &get_vehicle_info();
+            std::vector<std::reference_wrapper<ecu>> get_ecus();
             
+            void set_refreshed_cb(const std::function<void(void)> &cb);
+            void set_enable_pid_chaining(bool enable_pid_chaining);
+            void set_refresh_ms(uint32_t refresh_ms);
+
+            uint32_t get_refresh_ms() const;
+        
         private:
             // TODO: Enums for service and pids
             static constexpr uint32_t ECU_ID_BROADCAST  = 0x7DF;

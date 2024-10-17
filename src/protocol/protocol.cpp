@@ -302,6 +302,10 @@ namespace obd2 {
         refreshed_cb = cb;
     }
 
+    uint32_t protocol::get_refresh_ms() const {
+        return refresh_ms.load();
+    }
+
     bool protocol::recieved_any_response() {
         return recieved_response.load();
     }

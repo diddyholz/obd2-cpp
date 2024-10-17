@@ -72,6 +72,10 @@ namespace obd2 {
         this->enable_pid_chaining = enable_pid_chaining;
     }
 
+    uint32_t obd2::get_refresh_ms() const {
+        return protocol_instance.get_refresh_ms();
+    }
+
     std::vector<dtc> obd2::get_dtcs(uint32_t ecu_id) {
         std::vector<dtc> dtcs;
         dtc::status statuses[] = { dtc::STORED, dtc::PENDING, dtc::PERMANENT };

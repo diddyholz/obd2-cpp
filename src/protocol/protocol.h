@@ -62,6 +62,8 @@ namespace obd2 {
             void set_refreshed_cb(const std::function<void(void)> &cb);
             bool recieved_any_response();
 
+            uint32_t get_refresh_ms() const;
+
             friend class command;
     };
 }
