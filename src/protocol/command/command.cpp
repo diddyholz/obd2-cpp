@@ -1,5 +1,7 @@
 #include "command.h"
 
+#include <stdexcept>
+
 #include "command_backend/command_backend.h"
 
 namespace obd2 {
