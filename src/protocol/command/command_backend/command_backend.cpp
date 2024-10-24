@@ -1,5 +1,8 @@
 #include "command_backend.h"
 
+#include <algorithm>
+#include <stdexcept>
+
 #include "../../protocol.h"
 
 namespace obd2 {

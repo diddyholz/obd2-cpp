@@ -1,5 +1,6 @@
 #include "../include/obd2.h"
 
+#include <algorithm>
 #include <future>
 
 namespace obd2 {
