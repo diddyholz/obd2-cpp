@@ -1,5 +1,6 @@
 #include "req_combination.h"
 
+#include <algorithm>
 #include <stdexcept>
 
 #define OBD2_ID_OFFSET 0x08
