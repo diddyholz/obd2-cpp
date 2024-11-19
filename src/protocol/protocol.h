@@ -41,7 +41,7 @@ namespace obd2 {
 
             void command_listener();
             void process_commands();
-            bool process_sockets(command_backend *command_to_check = nullptr);
+            bool process_sockets();
             bool process_socket(socket_wrapper &s, command_backend *command_to_check = nullptr);
             void process_command(command_backend &c);
             socket_wrapper &get_socket(uint32_t tx_id, uint32_t rx_id);

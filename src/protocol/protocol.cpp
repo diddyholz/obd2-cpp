@@ -175,14 +175,24 @@ namespace obd2 {
 
             bool response_received = false;
 
+            // If for what ever reason the socket is not in the map, add it
+            if (command_socket_map.find(&c) == command_socket_map.end()) {
+                command_socket_map.emplace(&c, get_socket(c.tx_id, c.rx_id));
+            }
+
             // Process incoming data from sockets until response is received
-            while (!(response_received = process_sockets(&c)) && (std::chrono::steady_clock::now() - start) < std::chrono::milliseconds(timeout)) {
+            while (
+                !(response_received = process_socket(command_socket_map.at(&c), &c)) 
+                && (std::chrono::steady_clock::now() - start) < std::chrono::milliseconds(timeout)
+            ) {
                 std::this_thread::sleep_for(std::chrono::milliseconds(1));
             }
 
-            if (c.response_status == cmd_status::ERROR) {
-                return;
-            }
+            // !!! This is disabled for now, as it is breaking the simulator behaviour
+
+            // if (c.response_status == cmd_status::ERROR) {
+            //     return;
+            // }
 
             if (!response_received) {
                 c.response_status = cmd_status::NO_RESPONSE;
@@ -202,14 +212,12 @@ namespace obd2 {
         s.send_msg(msg_buf.data(), msg_buf.size());
     }
 
-    bool protocol::process_sockets(command_backend *command_to_check) {
+    bool protocol::process_sockets() {
         std::lock_guard<std::mutex> sockets_lock(sockets_mutex);
 
         // Go through each socket and process incoming messages
         for (socket_wrapper &s : sockets) {
-            if (process_socket(s, command_to_check)) {
-                return true;
-            }
+            process_socket(s);
         }
 
         return false;
@@ -256,13 +264,17 @@ namespace obd2 {
             if (cmd->tx_id != s.tx_id
                 || cmd->rx_id != s.rx_id
                 || cmd->sid != (sid - UDS_RX_SID_OFFSET) 
-                || (!cmd->contains_pid(pid) && nrc == 0 && !is_dtc)) {
+                || (nrc == 0 && !is_dtc && !cmd->contains_pid(pid))) {
                 continue;
             }
 
             // When negative response and command status was not OK before,
             // set command to contain error
-            if (nrc != 0 && cmd->response_status != cmd_status::OK) {
+            if (nrc != 0) {
+                if (cmd->response_status == cmd_status::OK) {
+                    continue;
+                }
+
                 std::vector neg_data = { nrc };
 
                 cmd->update_back_buffer(neg_data.data(), neg_data.data() + neg_data.size());
