@@ -28,7 +28,6 @@ namespace obd2 {
             right = std::make_unique<math_expr>(tmp_formula.substr(op_pos + 1, len));
 
             optimize_raw();
-            
             return;
         }
 
@@ -271,7 +270,7 @@ namespace obd2 {
             return true;
         }
 
-        if (!isdigit(formula[1]) || formula[1] > 7) {
+        if (!isdigit(formula[1]) || formula[1] > '7') {
             return false;
         }
 
